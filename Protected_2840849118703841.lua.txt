@@ -1750,6 +1750,7 @@ end)
 
 local transmitted = Window:Tab("玩家", '5436396975')
 
+-- 玩家选择部分
 local transmitted0 = transmitted:section("选择玩家", true)
 local AllPlayers = {}
 local selectedPlayer = nil
@@ -1757,12 +1758,14 @@ local dropdown = transmitted0:Dropdown("选择玩家用户名", "Player Name", A
     selectedPlayer = Value
 end)
 
+-- 全局变量
 local headSit = nil
 local isSitting = false
 local loopHeadSit = false
 local deathConnection = nil
-local teleportThreads = {} 
+local teleportThreads = {} -- 用于存储所有传送线程
 
+-- 刷新玩家列表
 local function refreshPlayerList()
     AllPlayers = {}
     for _, player in ipairs(game.Players:GetPlayers()) do
@@ -1773,6 +1776,7 @@ local function refreshPlayerList()
     dropdown:SetOptions(AllPlayers)
 end
 
+-- 停止所有传送线程
 local function stopAllTeleports()
     for _, thread in pairs(teleportThreads) do
         if thread then
@@ -1782,9 +1786,12 @@ local function stopAllTeleports()
     teleportThreads = {}
 end
 
+-- 完全禁用碰撞和伤害
 local function makeCharacterInvincible(character)
+    -- 确保角色存在
     if not character then return end
     
+    -- 禁用所有碰撞
     for _, part in ipairs(character:GetDescendants()) do
         if part:IsA("BasePart") then
             part.CanCollide = false
@@ -1793,9 +1800,11 @@ local function makeCharacterInvincible(character)
         end
     end
     
+    -- 防止所有伤害
     if character:FindFirstChildOfClass("Humanoid") then
         local humanoid = character:FindFirstChildOfClass("Humanoid")
         
+        -- 强制保持生命值
         spawn(function()
             while isSitting do
                 humanoid.Health = 100
@@ -1806,7 +1815,9 @@ local function makeCharacterInvincible(character)
     end
 end
 
+-- 坐头功能
 local function startHeadSit(targetPlayerName)
+    -- 如果已经在坐头，则停止
     if headSit then
         headSit:Disconnect()
         headSit = nil
@@ -1817,20 +1828,25 @@ local function startHeadSit(targetPlayerName)
     isSitting = true
     local speaker = game.Players.LocalPlayer
     
+    -- 确保角色存在
     if not speaker.Character then
         speaker.CharacterAdded:Wait()
     end
     
+    -- 应用无敌状态
     makeCharacterInvincible(speaker.Character)
     
+    -- 确保Humanoid存在
     local humanoid = speaker.Character:FindFirstChildOfClass("Humanoid")
     if not humanoid then
         repeat wait() until speaker.Character:FindFirstChildOfClass("Humanoid")
         humanoid = speaker.Character:FindFirstChildOfClass("Humanoid")
     end
     
+    -- 设置坐下状态
     humanoid.Sit = true
     
+    -- 监听角色死亡事件 (仅在循环开启时)
     if deathConnection then
         deathConnection:Disconnect()
         deathConnection = nil
@@ -1838,12 +1854,16 @@ local function startHeadSit(targetPlayerName)
     
     if loopHeadSit then
         deathConnection = humanoid.Died:Connect(function()
+            -- 角色死亡后等待重生
             speaker.CharacterAdded:Wait()
             
+            -- 确保新角色加载完成
             repeat wait() until speaker.Character:FindFirstChild("HumanoidRootPart")
             
+            -- 重新应用无敌状态
             makeCharacterInvincible(speaker.Character)
             
+            -- 重新启用坐头
             startHeadSit(targetPlayerName)
         end)
     end
@@ -1858,6 +1878,7 @@ local function startHeadSit(targetPlayerName)
             return
         end
         
+        -- 获取目标玩家
         local targetPlayer
         for _, player in ipairs(game.Players:GetPlayers()) do
             if player.Name == targetPlayerName or player.DisplayName == targetPlayerName then
@@ -1879,9 +1900,11 @@ local function startHeadSit(targetPlayerName)
         local speakerRoot = speaker.Character:FindFirstChild("HumanoidRootPart")
         
         if targetRoot and speakerRoot and humanoid.Sit then
+            -- 计算坐头位置
             local headPosition = targetRoot.CFrame * CFrame.new(0, 1.6, 0.4)
             speakerRoot.CFrame = headPosition
             
+            -- 持续应用无敌状态
             makeCharacterInvincible(speaker.Character)
         else
             if headSit then
@@ -1893,6 +1916,7 @@ local function startHeadSit(targetPlayerName)
     end)
 end
 
+-- 停止坐头功能
 local function stopHeadSit()
     if headSit then
         headSit:Disconnect()
@@ -1905,18 +1929,20 @@ local function stopHeadSit()
     isSitting = false
 end
 
+-- 初始化玩家列表
 spawn(function()
     while true do
         refreshPlayerList()
-        wait(2) 
+        wait(2) -- 每2秒刷新一次玩家列表
     end
 end)
 
+-- 坐头功能UI
 local transmitted2 = transmitted:section("坐头功能", true)
 
 transmitted2:Button("坐选定玩家头上", function()
     if selectedPlayer then
-        stopHeadSit() 
+        stopHeadSit() -- 先停止任何现有的坐头
         startHeadSit(selectedPlayer)
     end
 end)
@@ -1926,7 +1952,7 @@ transmitted2:Toggle("循环坐头", "NightVision", false, function(Value)
     
     if Value then
         if selectedPlayer then
-            stopHeadSit() 
+            stopHeadSit() -- 先停止任何现有的坐头
             startHeadSit(selectedPlayer)
         end
     else
@@ -1939,6 +1965,7 @@ transmitted2:Button("停止坐头", function()
     loopHeadSit = false
 end)
 
+-- 传送功能
 local transmitted1 = transmitted:section("传送功能", true)
 
 transmitted1:Button("传送到选定玩家", function()
@@ -1954,13 +1981,14 @@ transmitted1:Button("传送到选定玩家", function()
     end
 end)
 
+-- 添加一个全局变量来跟踪传送状态
 local isTeleportingSame = false
 local isTeleportingAll = false
 
 transmitted1:Toggle("循环传送同个玩家", "NightVision", false, function(Value)
     isTeleportingSame = Value
     if Value then
-        stopAllTeleports() 
+        stopAllTeleports() -- 停止所有现有的传送线程
         
         local thread = task.spawn(function()
             while isTeleportingSame do
@@ -1988,7 +2016,7 @@ end)
 transmitted1:Toggle("循环传送所有玩家", "NightVision", false, function(Value)
     isTeleportingAll = Value
     if Value then
-        stopAllTeleports() 
+        stopAllTeleports() -- 停止所有现有的传送线程
         
         local thread = task.spawn(function()
             while isTeleportingAll do
@@ -2012,719 +2040,19 @@ transmitted1:Toggle("循环传送所有玩家", "NightVision", false, function(V
     end
 end)
 
-local transmitted5 = transmitted:section("恶搞跟随功能", true)
+local transmitted3 = transmitted:section("把玩家传送过来", true)
+transmitted3:Button("清除传送过来的碰撞箱", function()
+    clearAllFakes()
+end)
 
-local isOrbiting = false
-local orbitConnection = nil
-
-transmitted5:Toggle("旋转环绕跟随", "围绕玩家旋转跟随", false, function(Value)
-    isOrbiting = Value
-    if Value then
-        if not selectedPlayer then
-            Library:Notification("请先选择玩家")
-            isOrbiting = false
-            return
-        end
-        
-        local targetPlayer = game.Players[selectedPlayer]
-        if not targetPlayer or not targetPlayer.Character then
-            Library:Notification("玩家不存在或没有角色")
-            isOrbiting = false
-            return
-        end
-        
-        local localPlayer = game.Players.LocalPlayer
-        if not localPlayer.Character then
-            Library:Notification("本地玩家角色不存在")
-            isOrbiting = false
-            return
-        end
-        
-        local orbitRadius = 5 -- 环绕半径
-        local orbitSpeed = 0.05 -- 环绕速度
-        local angle = 0
-        
-        -- 停止其他跟随功能
-        stopHeadSit()
-        stopAllTeleports()
-        
-        orbitConnection = game:GetService("RunService").Heartbeat:Connect(function()
-            if not isOrbiting or not targetPlayer or not targetPlayer.Character or not localPlayer.Character then
-                if orbitConnection then
-                    orbitConnection:Disconnect()
-                    orbitConnection = nil
-                end
-                return
-            end
-            
-            local targetRoot = targetPlayer.Character:FindFirstChild("HumanoidRootPart")
-            local localRoot = localPlayer.Character:FindFirstChild("HumanoidRootPart")
-            
-            if targetRoot and localRoot then
-                angle = angle + orbitSpeed
-                if angle > 360 then angle = 0 end
-                
-                -- 计算环绕位置
-                local offset = Vector3.new(math.cos(angle) * orbitRadius, 2, math.sin(angle) * orbitRadius)
-                local orbitPosition = targetRoot.Position + offset
-                
-                -- 设置位置
-                localRoot.CFrame = CFrame.new(orbitPosition, targetRoot.Position)
-                
-                -- 面向目标玩家
-                localPlayer.Character:SetPrimaryPartCFrame(
-                    CFrame.new(localRoot.Position, targetRoot.Position)
-                )
-            end
-        end)
-    else
-        if orbitConnection then
-            orbitConnection:Disconnect()
-            orbitConnection = nil
-        end
+transmitted3:Button("把选中的碰撞箱传送过来", function()
+    if selectedPlayer then
+        bringPlayerToMe(selectedPlayer)
     end
 end)
 
-local isMirroring = false
-local mirrorConnection = nil
-
-transmitted5:Toggle("镜像跟随", "模仿玩家动作", false, function(Value)
-    isMirroring = Value
-    if Value then
-        if not selectedPlayer then
-            Library:Notification("请先选择玩家")
-            isMirroring = false
-            return
-        end
-        
-        local targetPlayer = game.Players[selectedPlayer]
-        if not targetPlayer or not targetPlayer.Character then
-            Library:Notification("玩家不存在或没有角色")
-            isMirroring = false
-            return
-        end
-        
-        local localPlayer = game.Players.LocalPlayer
-        if not localPlayer.Character then
-            Library:Notification("本地玩家角色不存在")
-            isMirroring = false
-            return
-        end
-        
-        -- 停止其他跟随功能
-        stopHeadSit()
-        stopAllTeleports()
-        if orbitConnection then
-            orbitConnection:Disconnect()
-            orbitConnection = nil
-        end
-        
-        mirrorConnection = game:GetService("RunService").Heartbeat:Connect(function()
-            if not isMirroring or not targetPlayer or not targetPlayer.Character or not localPlayer.Character then
-                if mirrorConnection then
-                    mirrorConnection:Disconnect()
-                    mirrorConnection = nil
-                end
-                return
-            end
-            
-            local targetRoot = targetPlayer.Character:FindFirstChild("HumanoidRootPart")
-            local localRoot = localPlayer.Character:FindFirstChild("HumanoidRootPart")
-            local targetHumanoid = targetPlayer.Character:FindFirstChildOfClass("Humanoid")
-            local localHumanoid = localPlayer.Character:FindFirstChildOfClass("Humanoid")
-            
-            if targetRoot and localRoot and targetHumanoid and localHumanoid then
-                -- 计算镜像位置（目标玩家前方3米处）
-                local mirrorPosition = targetRoot.Position + (targetRoot.CFrame.LookVector * -3)
-                
-                -- 设置位置
-                localRoot.CFrame = CFrame.new(mirrorPosition, targetRoot.Position)
-                
-                -- 模仿动作
-                localHumanoid:Move(targetHumanoid.MoveDirection * -1) -- 反向移动
-                
-                -- 模仿跳跃
-                if targetHumanoid.Jump and not localHumanoid.Jump then
-                    localHumanoid.Jump = true
-                end
-            end
-        end)
-    else
-        if mirrorConnection then
-            mirrorConnection:Disconnect()
-            mirrorConnection = nil
-        end
-    end
-end)
-
-local isFloating = false
-local floatConnection = nil
-
-local isShadowFollowing = false
-local shadowConnection = nil
-
-transmitted5:Toggle("影子跟随", "像影子一样在地上跟随", false, function(Value)
-    isShadowFollowing = Value
-    if Value then
-        if not selectedPlayer then
-            Library:Notification("请先选择玩家")
-            isShadowFollowing = false
-            return
-        end
-        
-        local targetPlayer = game.Players[selectedPlayer]
-        if not targetPlayer or not targetPlayer.Character then
-            Library:Notification("玩家不存在或没有角色")
-            isShadowFollowing = false
-            return
-        end
-        
-        local localPlayer = game.Players.LocalPlayer
-        if not localPlayer.Character then
-            Library:Notification("本地玩家角色不存在")
-            isShadowFollowing = false
-            return
-        end
-        
-        -- 停止其他跟随功能
-        stopHeadSit()
-        stopAllTeleports()
-        if orbitConnection then
-            orbitConnection:Disconnect()
-            orbitConnection = nil
-        end
-        if mirrorConnection then
-            mirrorConnection:Disconnect()
-            mirrorConnection = nil
-        end
-        if floatConnection then
-            floatConnection:Disconnect()
-            floatConnection = nil
-        end
-        if reverseConnection then
-            reverseConnection:Disconnect()
-            reverseConnection = nil
-        end
-        if danceConnection then
-            danceConnection:Disconnect()
-            danceConnection = nil
-        end
-        
-        shadowConnection = game:GetService("RunService").Heartbeat:Connect(function()
-            if not isShadowFollowing or not targetPlayer or not targetPlayer.Character or not localPlayer.Character then
-                if shadowConnection then
-                    shadowConnection:Disconnect()
-                    shadowConnection = nil
-                end
-                return
-            end
-            
-            local targetRoot = targetPlayer.Character:FindFirstChild("HumanoidRootPart")
-            local localRoot = localPlayer.Character:FindFirstChild("HumanoidRootPart")
-            
-            if targetRoot and localRoot then
-                local targetPos = targetRoot.Position
-                
-                local rayOrigin = Vector3.new(targetPos.X, targetPos.Y + 5, targetPos.Z)
-                local rayDirection = Vector3.new(0, -10, 0)
-                local raycastParams = RaycastParams.new()
-                raycastParams.FilterType = Enum.RaycastFilterType.Blacklist
-                raycastParams.FilterDescendantsInstances = {localPlayer.Character, targetPlayer.Character}
-                
-                local raycastResult = workspace:Raycast(rayOrigin, rayDirection, raycastParams)
-                
-                local shadowPosition
-                if raycastResult then
-                    shadowPosition = Vector3.new(targetPos.X, raycastResult.Position.Y + 0.1, targetPos.Z)
-                else
-                    shadowPosition = Vector3.new(targetPos.X, targetPos.Y - 2, targetPos.Z)
-                end
-                
-                localRoot.CFrame = CFrame.new(shadowPosition) * CFrame.Angles(-math.pi/2, 0, 0)
-                
-                local humanoid = localPlayer.Character:FindFirstChildOfClass("Humanoid")
-                if humanoid then
-                    humanoid.AutoRotate = false 
-                end
-                
-                for _, part in ipairs(localPlayer.Character:GetDescendants()) do
-                    if part:IsA("BasePart") then
-                        part.Color = Color3.new(0.1, 0.1, 0.1) 
-                        part.Material = EnumMaterial.SmoothPlastic
-                    end
-                end
-            end
-        end)
-    else
-        if shadowConnection then
-            shadowConnection:Disconnect()
-            shadowConnection = nil
-        end
-        
-        -- 恢复角色外观
-        local localPlayer = game.Players.LocalPlayer
-        if localPlayer.Character then
-            local humanoid = localPlayer.Character:FindFirstChildOfClass("Humanoid")
-            if humanoid then
-                humanoid.AutoRotate = true 
-            end
-            
-            for _, part in ipairs(localPlayer.Character:GetDescendants()) do
-                if part:IsA("BasePart") and part:FindFirstChild("OriginalColor") then
-                    part.Color = part.OriginalColor.Value
-                    part.OriginalColor:Destroy()
-                elseif part:IsA("BasePart") then
-                    local originalColor = Instance.new("Color3Value")
-                    originalColor.Name = "OriginalColor"
-                    originalColor.Value = part.Color
-                    originalColor.Parent = part
-                end
-            end
-        end
-    end
-end)
-
-transmitted5:Toggle("头顶漂浮跟随", "在玩家头顶漂浮", false, function(Value)
-    isFloating = Value
-    if Value then
-        if not selectedPlayer then
-            Library:Notification("请先选择玩家")
-            isFloating = false
-            return
-        end
-        
-        local targetPlayer = game.Players[selectedPlayer]
-        if not targetPlayer or not targetPlayer.Character then
-            Library:Notification("玩家不存在或没有角色")
-            isFloating = false
-            return
-        end
-        
-        local localPlayer = game.Players.LocalPlayer
-        if not localPlayer.Character then
-            Library:Notification("本地玩家角色不存在")
-            isFloating = false
-            return
-        end
-        
-        stopHeadSit()
-        stopAllTeleports()
-        if orbitConnection then
-            orbitConnection:Disconnect()
-            orbitConnection = nil
-        end
-        if mirrorConnection then
-            mirrorConnection:Disconnect()
-            mirrorConnection = nil
-        end
-        
-        floatConnection = game:GetService("RunService").Heartbeat:Connect(function()
-            if not isFloating or not targetPlayer or not targetPlayer.Character or not localPlayer.Character then
-                if floatConnection then
-                    floatConnection:Disconnect()
-                    floatConnection = nil
-                end
-                return
-            end
-            
-            local targetRoot = targetPlayer.Character:FindFirstChild("HumanoidRootPart")
-            local localRoot = localPlayer.Character:FindFirstChild("HumanoidRootPart")
-            
-            if targetRoot and localRoot then
-                local floatPosition = targetRoot.Position + Vector3.new(0, 3, 0)
-                
-                localRoot.CFrame = CFrame.new(floatPosition)
-                
-                localBodyForce = localRoot:FindFirstChild("FloatBodyForce") or Instance.new("BodyForce")
-                localBodyForce.Name = "FloatBodyForce"
-                localBodyForce.Force = Vector3.new(0, localPlayer.Character:GetMass() * workspace.Gravity, 0)
-                localBodyForce.Parent = localRoot
-            end
-        end)
-    else
-        if floatConnection then
-            floatConnection:Disconnect()
-            floatConnection = nil
-        end
-        
-        local localPlayer = game.Players.LocalPlayer
-        if localPlayer.Character then
-            local localRoot = localPlayer.Character:FindFirstChild("HumanoidRootPart")
-            if localRoot then
-                local floatBodyForce = localRoot:FindFirstChild("FloatBodyForce")
-                if floatBodyForce then
-                    floatBodyForce:Destroy()
-                end
-            end
-        end
-    end
-end)
-
-local isReversing = false
-local reverseConnection = nil
-
-transmitted5:Toggle("反向跟随", "始终保持在玩家背后", false, function(Value)
-    isReversing = Value
-    if Value then
-        if not selectedPlayer then
-            Library:Notification("请先选择玩家")
-            isReversing = false
-            return
-        end
-        
-        local targetPlayer = game.Players[selectedPlayer]
-        if not targetPlayer or not targetPlayer.Character then
-            Library:Notification("玩家不存在或没有角色")
-            isReversing = false
-            return
-        end
-        
-        local localPlayer = game.Players.LocalPlayer
-        if not localPlayer.Character then
-            Library:Notification("本地玩家角色不存在")
-            isReversing = false
-            return
-        end
-        
-        -- 停止其他跟随功能
-        stopHeadSit()
-        stopAllTeleports()
-        if orbitConnection then
-            orbitConnection:Disconnect()
-            orbitConnection = nil
-        end
-        if mirrorConnection then
-            mirrorConnection:Disconnect()
-            mirrorConnection = nil
-        end
-        if floatConnection then
-            floatConnection:Disconnect()
-            floatConnection = nil
-        end
-        
-        reverseConnection = game:GetService("RunService").Heartbeat:Connect(function()
-            if not isReversing or not targetPlayer or not targetPlayer.Character or not localPlayer.Character then
-                if reverseConnection then
-                    reverseConnection:Disconnect()
-                    reverseConnection = nil
-                end
-                return
-            end
-            
-            local targetRoot = targetPlayer.Character:FindFirstChild("HumanoidRootPart")
-            local localRoot = localPlayer.Character:FindFirstChild("HumanoidRootPart")
-            
-            if targetRoot and localRoot then
-                local behindPosition = targetRoot.Position - (targetRoot.CFrame.LookVector * 2)
-                
-                localRoot.CFrame = CFrame.new(behindPosition, targetRoot.Position)
-            end
-        end)
-    else
-        if reverseConnection then
-            reverseConnection:Disconnect()
-            reverseConnection = nil
-        end
-    end
-end)
-
-local isDancing = false
-local danceConnection = nil
-
-transmitted5:Toggle("围绕跳舞跟随", "围绕玩家跳舞", false, function(Value)
-    isDancing = Value
-    if Value then
-        if not selectedPlayer then
-            Library:Notification("请先选择玩家")
-            isDancing = false
-            return
-        end
-        
-        local targetPlayer = game.Players[selectedPlayer]
-        if not targetPlayer or not targetPlayer.Character then
-            Library:Notification("玩家不存在或没有角色")
-            isDancing = false
-            return
-        end
-        
-        local localPlayer = game.Players.LocalPlayer
-        if not localPlayer.Character then
-            Library:Notification("本地玩家角色不存在")
-            isDancing = false
-            return
-        end
-        
-        stopHeadSit()
-        stopAllTeleports()
-        if orbitConnection then
-            orbitConnection:Disconnect()
-            orbitConnection = nil
-        end
-        if mirrorConnection then
-            mirrorConnection:Disconnect()
-            mirrorConnection = nil
-        end
-        if floatConnection then
-            floatConnection:Disconnect()
-            floatConnection = nil
-        end
-        if reverseConnection then
-            reverseConnection:Disconnect()
-            reverseConnection = nil
-        end
-        
-        local danceRadius = 3 
-        local danceSpeed = 0.1 
-        local danceHeight = 0.5 
-        local danceAngle = 0
-        
-        danceConnection = game:GetService("RunService").Heartbeat:Connect(function()
-            if not isDancing or not targetPlayer or not targetPlayer.Character or not localPlayer.Character then
-                if danceConnection then
-                    danceConnection:Disconnect()
-                    danceConnection = nil
-                end
-                return
-            end
-            
-            local targetRoot = targetPlayer.Character:FindFirstChild("HumanoidRootPart")
-            local localRoot = localPlayer.Character:FindFirstChild("HumanoidRootPart")
-            local localHumanoid = localPlayer.Character:FindFirstChildOfClass("Humanoid")
-            
-            if targetRoot and localRoot and localHumanoid then
-                danceAngle = danceAngle + danceSpeed
-                if danceAngle > 360 then danceAngle = 0 end
-                
-                local danceOffset = Vector3.new(
-                    math.cos(danceAngle) * danceRadius,
-                    math.sin(danceAngle * 2) * danceHeight + 1.5, 
-                    math.sin(danceAngle) * danceRadius
-                )
-                local dancePosition = targetRoot.Position + danceOffset
-                
-                localRoot.CFrame = CFrame.new(dancePosition, targetRoot.Position)
-                
-                if math.random(1, 20) == 1 then
-                    localHumanoid.Jump = true
-                end
-            end
-        end)
-    else
-        if danceConnection then
-            danceConnection:Disconnect()
-            danceConnection = nil
-        end
-    end
-end)
-
-local isShadowAscending = false
-local shadowAscendConnection = nil
-local shadowAscendSpeed = 0.5 
-local currentShadowHeight = 0 
-
-transmitted5:Toggle("带他升天", "在玩家下方缓慢升空", false, function(Value)
-    isShadowAscending = 0.5
-    if Value then
-        if not selectedPlayer then
-            Library:Notification("请先选择玩家")
-            isShadowAscending = false
-            return
-        end
-        
-        local targetPlayer = game.Players[selectedPlayer]
-        if not targetPlayer or not targetPlayer.Character then
-            Library:Notification("玩家不存在或没有角色")
-            isShadowAscending = false
-            return
-        end
-        
-        local localPlayer = game.Players.LocalPlayer
-        if not localPlayer.Character then
-            Library:Notification("本地玩家角色不存在")
-            isShadowAscending = false
-            return
-        end
-        
-        stopHeadSit()
-        stopAllTeleports()
-        if orbitConnection then
-            orbitConnection:Disconnect()
-            orbitConnection = nil
-        end
-        if mirrorConnection then
-            mirrorConnection:Disconnect()
-            mirrorConnection = nil
-        end
-        if floatConnection then
-            floatConnection:Disconnect()
-            floatConnection = nil
-        end
-        if reverseConnection then
-            reverseConnection:Disconnect()
-            reverseConnection = nil
-        end
-        if danceConnection then
-            danceConnection:Disconnect()
-            danceConnection = nil
-        end
-        if shadowConnection then
-            shadowConnection:Disconnect()
-            shadowConnection = nil
-        end
-        
-        currentShadowHeight = 0
-        
-        shadowAscendConnection = game:GetService("RunService").Heartbeat:Connect(function(deltaTime)
-            if not isShadowAscending or not targetPlayer or not targetPlayer.Character or not localPlayer.Character then
-                if shadowAscendConnection then
-                    shadowAscendConnection:Disconnect()
-                    shadowAscendConnection = nil
-                end
-                return
-            end
-            
-            local targetRoot = targetPlayer.Character:FindFirstChild("HumanoidRootPart")
-            local localRoot = localPlayer.Character:FindFirstChild("HumanoidRootPart")
-            
-            if targetRoot and localRoot then
-                local targetPos = targetRoot.Position
-               
-                local rayOrigin = Vector3.new(targetPos.X, targetPos.Y + 5, targetPos.Z)
-                local rayDirection = Vector3.new(0, -100, 0) 
-                local raycastParams = RaycastParams.new()
-                raycastParams.FilterType = Enum.RaycastFilterType.Blacklist
-                raycastParams.FilterDescendantsInstances = {localPlayer.Character, targetPlayer.Character}
-                
-                local raycastResult = workspace:Raycast(rayOrigin, rayDirection, raycastParams)
-                
-                local groundHeight
-                if raycastResult then
-                    groundHeight = raycastResult.Position.Y
-                else
-                    groundHeight = targetPos.Y - 10 
-                end
-                
-                currentShadowHeight = math.min(currentShadowHeight + (shadowAscendSpeed * deltaTime), targetPos.Y - groundHeight - 0.5)
-               
-                local shadowPosition = Vector3.new(targetPos.X, groundHeight + currentShadowHeight, targetPos.Z)
-                
-                localRoot.CFrame = CFrame.new(shadowPosition) * CFrame.Angles(-math.pi/2, 0, 0)
-               
-                local humanoid = localPlayer.Character:FindFirstChildOfClass("Humanoid")
-                if humanoid then
-                    humanoid.AutoRotate = false 
-                end
-                
-                for _, part in ipairs(localPlayer.Character:GetDescendants()) do
-                    if part:IsA("BasePart") then
-                        if not part:FindFirstChild("OriginalColor") then
-                            local originalColor = Instance.new("Color3Value")
-                            originalColor.Name = "OriginalColor"
-                            originalColor.Value = part.Color
-                            originalColor.Parent = part
-                        end
-                        
-                        part.Color = Color3.new(0.1, 0.1, 0.1) 
-                        part.Material = EnumMaterial.SmoothPlastic
-                    end
-                end
-            end
-        end)
-    else
-        if shadowAscendConnection then
-            shadowAscendConnection:Disconnect()
-            shadowAscendConnection = nil
-        end
-        
-        local localPlayer = game.Players.LocalPlayer
-        if localPlayer.Character then
-            local humanoid = localPlayer.Character:FindFirstChildOfClass("Humanoid")
-            if humanoid then
-                humanoid.AutoRotate = true 
-            end
-            
-            for _, part in ipairs(localPlayer.Character:GetDescendants()) do
-                if part:IsA("BasePart") and part:FindFirstChild("OriginalColor") then
-                    part.Color = part.OriginalColor.Value
-                    part.OriginalColor:Destroy()
-                end
-            end
-        end
-        
-        currentShadowHeight = 0
-    end
-end)
-
-transmitted5:Button("停止所有跟随", function()
-    stopHeadSit()
-    stopAllTeleports()
-    
-    isOrbiting = false
-    if orbitConnection then
-        orbitConnection:Disconnect()
-        orbitConnection = nil
-    end
-    
-    isMirroring = false
-    if mirrorConnection then
-        mirrorConnection:Disconnect()
-        mirrorConnection = nil
-    end
-    
-    isFloating = false
-    if floatConnection then
-        floatConnection:Disconnect()
-        floatConnection = nil
-    end
-    
-    isReversing = false
-    if reverseConnection then
-        reverseConnection:Disconnect()
-        reverseConnection = nil
-    end
-    
-    isDancing = false
-    if danceConnection then
-        danceConnection:Disconnect()
-        danceConnection = nil
-    end
-    
-    isShadowFollowing = false
-    if shadowConnection then
-        shadowConnection:Disconnect()
-        shadowConnection = nil
-    end
-    
-    isShadowAscending = false
-    if shadowAscendConnection then
-        shadowAscendConnection:Disconnect()
-        shadowAscendConnection = nil
-    end
-    
-    local localPlayer = game.Players.LocalPlayer
-    if localPlayer.Character then
-        local localRoot = localPlayer.Character:FindFirstChild("HumanoidRootPart")
-        if localRoot then
-            local floatBodyForce = localRoot:FindFirstChild("FloatBodyForce")
-            if floatBodyForce then
-                floatBodyForce:Destroy()
-            end
-        end
-        
-        local humanoid = localPlayer.Character:FindFirstChildOfClass("Humanoid")
-        if humanoid then
-            humanoid.AutoRotate = true 
-        end
-        
-        for _, part in ipairs(localPlayer.Character:GetDescendants()) do
-            if part:IsA("BasePart") and part:FindFirstChild("OriginalColor") then
-                part.Color = part.OriginalColor.Value
-                part.OriginalColor:Destroy()
-            end
-        end
-    end
-    
-    Library:Notification("已停止所有跟随功能")
+transmitted3:Button("把全部碰撞箱传送过来", function()
+    bringAllPlayersToMe()
 end)
 
 local transmitted4 = transmitted:section("视角", true)
@@ -2733,6 +2061,7 @@ local monitor = {
     target = nil
 }
 
+-- 开始监视功能
 local function startViewing()
     if monitor.active then
         Library:Notification("请先停止当前监视")
@@ -2758,6 +2087,7 @@ local function startViewing()
         return
     end
     
+    -- 设置监视状态
     monitor.target = targetPlayer
     monitor.active = true
     
@@ -2765,9 +2095,11 @@ local function startViewing()
     transmitted4:Label("当前监视状态: " .. selectedPlayer)
 end
 
+-- 停止监视功能
 local function stopViewing()
     if not monitor.active then return end
     
+    -- 恢复本地玩家视角
     local localPlayer = game.Players.LocalPlayer
     if localPlayer.Character then
         local humanoid = localPlayer.Character:FindFirstChildOfClass("Humanoid")
@@ -2783,17 +2115,20 @@ local function stopViewing()
     transmitted4:Label("当前监视状态: 未监视")
 end
 
+-- 持续更新摄像头的主循环
 spawn(function()
     while true do
         wait(0.1)
         
         if monitor.active and monitor.target then
+            -- 检查玩家是否仍然有效
             if not monitor.target.Parent then
                 stopViewing()
                 Library:Notification("玩家已离开游戏")
                 break
             end
             
+            -- 检查角色是否存在
             local character = monitor.target.Character
             if not character then
                 stopViewing()
@@ -2801,6 +2136,7 @@ spawn(function()
                 break
             end
             
+            -- 找到合适的摄像头目标
             local targetSubject = character:FindFirstChildOfClass("Humanoid")
             if not targetSubject then
                 targetSubject = character:FindFirstChild("Head") or 
@@ -2819,6 +2155,7 @@ spawn(function()
     end
 end)
 
+-- 玩家离开游戏时自动停止监视
 game.Players.PlayerRemoving:Connect(function(player)
     if monitor.target == player then
         stopViewing()
@@ -3724,7 +3061,66 @@ Section6:Button("无限跳", function()
     end)
 end)
 Section6:Button("滚动(手机配合移动键盘第2种最适合)", function()
-     loadstring(game:HttpGet("https://pastebin.com/raw/8U2YyZQE"))()
+local UserInputService = game:GetService("UserInputService")
+local RunService = game:GetService("RunService")
+local Camera = workspace.CurrentCamera
+
+local SPEED_MULTIPLIER = 30
+local JUMP_POWER = 60
+local JUMP_GAP = 0.3
+
+local character = game.Players.LocalPlayer.Character
+
+for i,v in ipairs(character:GetDescendants()) do
+   if v:IsA("BasePart") then
+       v.CanCollide = false
+   end
+end
+
+local ball = character.HumanoidRootPart
+ball.Shape = Enum.PartType.Ball
+ball.Size = Vector3.new(5,5,5)
+local humanoid = character:WaitForChild("Humanoid")
+local params = RaycastParams.new()
+params.FilterType = Enum.RaycastFilterType.Blacklist
+params.FilterDescendantsInstances = {character}
+
+local tc = RunService.RenderStepped:Connect(function(delta)
+   ball.CanCollide = true
+   humanoid.PlatformStand = true
+if UserInputService:GetFocusedTextBox() then return end
+if UserInputService:IsKeyDown("W") then
+ball.RotVelocity -= Camera.CFrame.RightVector * delta * SPEED_MULTIPLIER
+end
+if UserInputService:IsKeyDown("A") then
+ball.RotVelocity -= Camera.CFrame.LookVector * delta * SPEED_MULTIPLIER
+end
+if UserInputService:IsKeyDown("S") then
+ball.RotVelocity += Camera.CFrame.RightVector * delta * SPEED_MULTIPLIER
+end
+if UserInputService:IsKeyDown("D") then
+ball.RotVelocity += Camera.CFrame.LookVector * delta * SPEED_MULTIPLIER
+end
+--ball.RotVelocity = ball.RotVelocity - Vector3.new(0,ball.RotVelocity.Y/50,0)
+end)
+
+UserInputService.JumpRequest:Connect(function()
+local result = workspace:Raycast(
+ball.Position,
+Vector3.new(
+0,
+-((ball.Size.Y/2)+JUMP_GAP),
+0
+),
+params
+)
+if result then
+ball.Velocity = ball.Velocity + Vector3.new(0,JUMP_POWER,0)
+end
+end)
+
+Camera.CameraSubject = ball
+humanoid.Died:Connect(function() tc:Disconnect() end)
 end)
 Section6:Button("控制玩家", function()
     loadstring(game:HttpGet("https://raw.githubusercontent.com/BOOSBS/BOOSBS/refs/heads/main/README.md"))()
@@ -3928,7 +3324,142 @@ Section7:Button("选人甩飞（需要输入别人的名字）", function()
     loadstring(game:HttpGet('https://raw.githubusercontent.com/GhostPlayer352/Test4/main/Auto%20Fling%20Player'))()
 end)
 Section7:Button("刷道具", function()
-loadstring(game:HttpGet("https://pastebin.com/raw/PQg5iUEu"))()
+    local ScreenGui = Instance.new("ScreenGui")
+local Frame = Instance.new("Frame")
+local ScrollingFrame = Instance.new("ScrollingFrame")
+local UIListLayout = Instance.new("UIListLayout")
+local TextButton = Instance.new("TextButton")
+local TextLabel = Instance.new("TextLabel")
+local TextButton_2 = Instance.new("TextButton")
+
+ScreenGui.Parent = game:GetService("CoreGui")
+ScreenGui.ZIndexBehavior = Enum.ZIndexBehavior.Sibling
+ScreenGui.ResetOnSpawn = false
+
+Frame.Parent = ScreenGui
+Frame.Active = true
+Frame.BackgroundColor3 = Color3.fromRGB(255, 255, 255)
+Frame.BorderColor3 = Color3.fromRGB(0, 0, 0)
+Frame.Position = UDim2.new(0.0610425249, 0, 0.0939490423, 0)
+Frame.Size = UDim2.new(0, 218, 0, 225)
+
+ScrollingFrame.Parent = Frame
+ScrollingFrame.Active = true
+ScrollingFrame.BackgroundColor3 = Color3.fromRGB(255, 255, 255)
+ScrollingFrame.BorderColor3 = Color3.fromRGB(0, 0, 0)
+ScrollingFrame.Position = UDim2.new(0.0871559605, 0, 0.155555561, 0)
+ScrollingFrame.Size = UDim2.new(0, 187, 0, 136)
+ScrollingFrame.CanvasSize = UDim2.new(0, 0, 35, 0)
+
+UIListLayout.Parent = ScrollingFrame
+UIListLayout.SortOrder = Enum.SortOrder.LayoutOrder
+
+TextButton.Parent = ScrollingFrame
+TextButton.BackgroundColor3 = Color3.fromRGB(117, 117, 117)
+TextButton.BorderColor3 = Color3.fromRGB(0, 0, 0)
+TextButton.Size = UDim2.new(0, 155, 0, 39)
+TextButton.Visible = false
+TextButton.Font = Enum.Font.SourceSans
+TextButton.TextColor3 = Color3.fromRGB(0, 0, 0)
+TextButton.TextSize = 20.000
+TextButton.TextStrokeColor3 = Color3.fromRGB(255, 255, 255)
+TextButton.TextStrokeTransparency = 0.000
+TextButton.TextWrapped = true
+
+TextLabel.Parent = Frame
+TextLabel.BackgroundColor3 = Color3.fromRGB(255, 255, 255)
+TextLabel.BorderColor3 = Color3.fromRGB(0, 0, 0)
+TextLabel.Position = UDim2.new(-0.00129664713, 0, -0.000140406293, 0)
+TextLabel.Size = UDim2.new(0, 218, 0, 25)
+TextLabel.Font = Enum.Font.SourceSans
+TextLabel.Text = "工具生成器"
+TextLabel.TextColor3 = Color3.fromRGB(0, 0, 0)
+TextLabel.TextSize = 14.000
+
+TextButton_2.Parent = Frame
+TextButton_2.BackgroundColor3 = Color3.fromRGB(0, 255, 30)
+TextButton_2.BorderColor3 = Color3.fromRGB(0, 0, 0)
+TextButton_2.Position = UDim2.new(0.0825688094, 0, 0.804444432, 0)
+TextButton_2.Size = UDim2.new(0, 180, 0, 30)
+TextButton_2.Font = Enum.Font.SourceSans
+TextButton_2.Text = "更新列表"
+TextButton_2.TextColor3 = Color3.fromRGB(0, 0, 0)
+TextButton_2.TextSize = 14.000
+
+local function FNDR_fake_script() -- Frame.LocalScript 
+	local script = Instance.new('LocalScript', Frame)
+
+	local button = script.Parent.ScrollingFrame.TextButton
+	button.Parent = nil
+	button.Name = "slaves"
+	local function updatelist()
+		for i, v in script.Parent.ScrollingFrame:GetDescendants() do
+			if v:IsA("TextButton") then
+				v:Destroy()
+			end
+		end
+	
+		local function cloneToBackpack(toolName)
+			local clonedTool = toolName:Clone()
+			clonedTool.Parent = game:GetService("Players").LocalPlayer:WaitForChild("Backpack")
+		end
+		for i, v in pairs(game:GetDescendants()) do
+			if v:IsA("Tool") and v.Parent.Parent ~= game:GetService("Players").LocalPlayer then
+				local clonebutton = button:Clone()
+				clonebutton.Parent = script.Parent.ScrollingFrame
+				clonebutton.Visible = true
+				clonebutton.Text = v.Name
+				clonebutton.MouseButton1Click:Connect(function()
+					cloneToBackpack(v)
+				end)
+			end
+		end
+	end
+	script.Parent.TextButton.MouseButton1Click:Connect(updatelist)
+end
+coroutine.wrap(FNDR_fake_script)()
+local function SGRWUDK_fake_script() -- Frame.DragScript 
+	local script = Instance.new('LocalScript', Frame)
+
+	local UIS = game:GetService('UserInputService')
+	local frame = script.Parent
+	local dragToggle = nil
+	local dragSpeed = 0
+	local dragStart = nil
+	local startPos = nil
+	
+	local function updateInput(input)
+		local delta = input.Position - dragStart
+		local position = UDim2.new(startPos.X.Scale, startPos.X.Offset + delta.X,
+			startPos.Y.Scale, startPos.Y.Offset + delta.Y)
+		game:GetService('TweenService'):Create(frame, TweenInfo.new(dragSpeed), {
+			Position = position
+		}):Play()
+	end
+	
+	frame.InputBegan:Connect(function(input)
+		if (input.UserInputType == Enum.UserInputType.MouseButton1 or input.UserInputType == Enum.UserInputType.Touch) then 
+			dragToggle = true
+			dragStart = input.Position
+			startPos = frame.Position
+			input.Changed:Connect(function()
+				if input.UserInputState == Enum.UserInputState.End then
+					dragToggle = false
+				end
+			end)
+		end
+	end)
+	
+	UIS.InputChanged:Connect(function(input)
+		if input.UserInputType == Enum.UserInputType.MouseMovement or input.UserInputType == Enum.UserInputType.Touch then
+			if dragToggle then
+				updateInput(input)
+			end
+		end
+	end)
+	
+end
+coroutine.wrap(SGRWUDK_fake_script)()
 end)
 Section7:Button("位置", function()
 local ScreenGui = Instance.new("ScreenGui")
@@ -8387,8 +7918,8 @@ grabTool.BinType = 2
 grabTool.Parent = backpack
 
 end)
-BFD1:Button("可设置碰撞力", function()
-    loadstring(game:HttpGet("https://raw.githubusercontent.com/1379qpalzmtygvezimaliexcvbnqplasdfg/17867876100/refs/heads/main/%E6%9D%80.txt"))()
+Rose:Button("快乐中心(后门脚本)", function()
+ loadstring(game:HttpGet("https://pastebin.com/raw/8sv4bsPa"))()
 end)
 Rose:Button("当别人的宠物", function()
  loadstring(game:HttpGet("https://raw.githubusercontent.com/randomstring0/Qwerty/refs/heads/main/qwerty40.lua"))()
@@ -8990,31 +8521,6 @@ end)
 superuniversal9:Button("切换布娃娃状态(开启/关闭)", function()
     toggleRagdoll()
 end)
-superuniversal9:Button("去雾", function()
-    local function NoFog()
-        game:GetService("Lighting").FogEnd = 100000000000000000000000
-        game:GetService("Lighting").FogStart = 0
-    end
-
-    NoFog()
-    local Sound = Instance.new("Sound", game:GetService("SoundService"))
-    Sound:Play()
-end)
-
-local xrayEnabled = false
-
-local function xray()
-    for _, v in pairs(workspace:GetDescendants()) do
-        if v:IsA("BasePart") and not v.Parent:FindFirstChildWhichIsA("Humanoid") and
-            not v.Parent.Parent:FindFirstChildWhichIsA("Humanoid") then
-            v.LocalTransparencyModifier = xrayEnabled and 0.5 or 0
-        end
-    end
-end
-superuniversal9:Toggle("半透明零件", "xrayEnabled", false, function(Value)
-    xrayEnabled = Value
-    xray() 
-end)
 superuniversal9:Button("道具打飞", function()
     loadstring(game:HttpGet("https://raw.githubusercontent.com/1379qpalzmtygvezimaliexcvbnqplasdfg/11284/main/Protected_8541619425084651.lua.txt"))()
 end)
@@ -9276,7 +8782,906 @@ BFD1:Button("移动键盘(第2种)", function()
     loadstring(game:HttpGet("https://raw.githubusercontent.com/Patrickyoutubes/Noskix/main/keystrokes5.lua"))()
 end)
 BFD1:Button("R15变R6", function()
-loadstring(game:HttpGet("https://pastebin.com/raw/rHgGtqev"))()
+--reanimate by MyWorld#4430 discord.gg/pYVHtSJmEY
+--"oMg tHIs cODe iS uNReaDabLe sO iT SUckS" -its not a script for u to understand and edit but to use with your other scripts
+local v3_net, v3_808 = Vector3.new(0, 25.1, 0), Vector3.new(8, 0, 8)
+    local function getNetlessVelocity(realPartVelocity)
+        local mag = realPartVelocity.Magnitude
+        if mag > 1 then
+            local unit = realPartVelocity.Unit
+            if (unit.Y > 0.25) or (unit.Y < -0.75) then
+                return unit * (25.1 / unit.Y)
+            end
+        end
+        return v3_net + realPartVelocity * v3_808
+    end
+    local simradius = "shp" --simulation radius (net bypass) method
+--"shp" - sethiddenproperty
+--"ssr" - setsimulationradius
+--false - disable
+local simrad = 1000 --simulation radius value
+local healthHide = true --moves your head away every 3 seconds so players dont see your health bar (alignmode 4 only)
+local reclaim = true --if you lost control over a part this will move your primary part to the part so you get it back (alignmode 4)
+local novoid = true --prevents parts from going under workspace.FallenPartsDestroyHeight if you control them (alignmode 4 only)
+local physp = nil --PhysicalProperties.new(0.01, 0, 1, 0, 0) --sets .CustomPhysicalProperties to this for each part
+local noclipAllParts = false --set it to true if you want noclip
+local antiragdoll = true --removes hingeConstraints and ballSocketConstraints from your character
+local newanimate = true --disables the animate script and enables after reanimation
+local discharscripts = true --disables all localScripts parented to your character before reanimation
+local R15toR6 = true --tries to convert your character to r6 if its r15
+local hatcollide = true --makes hats cancollide (credit to ShownApe) (works only with reanimate method 0)
+local humState16 = true --enables collisions for limbs before the humanoid dies (using hum:ChangeState)
+local addtools = false --puts all tools from backpack to character and lets you hold them after reanimation
+local hedafterneck = true --disable aligns for head and enable after neck or torso is removed
+local loadtime = game:GetService("Players").RespawnTime + 100000 --anti respawn delay
+local method = 3 --reanimation method
+--methods:
+--0 - breakJoints (takes [loadtime] seconds to load)
+--1 - limbs
+--2 - limbs + anti respawn
+--3 - limbs + breakJoints after [loadtime] seconds
+--4 - remove humanoid + breakJoints
+--5 - remove humanoid + limbs
+local alignmode = 4 --AlignPosition mode
+--modes:
+--1 - AlignPosition rigidity enabled true
+--2 - 2 AlignPositions rigidity enabled both true and false
+--3 - AlignPosition rigidity enabled false
+--4 - no AlignPosition, CFrame only
+local flingpart = "HumanoidRootPart" --name of the part or the hat used for flinging
+--the fling function
+--usage: fling(target, duration, velocity)
+--target can be set to: basePart, CFrame, Vector3, character model or humanoid (flings at mouse.Hit if argument not provided)
+--duration (fling time in seconds) can be set to a number or a string convertable to a number (0.5s if not provided)
+--velocity (fling part rotation velocity) can be set to a vector3 value (Vector3.new(20000, 20000, 20000) if not provided)
+
+local lp = game:GetService("Players").LocalPlayer
+local rs, ws, sg = game:GetService("RunService"), game:GetService("Workspace"), game:GetService("StarterGui")
+local stepped, heartbeat, renderstepped = rs.Stepped, rs.Heartbeat, rs.RenderStepped
+local twait, tdelay, rad, inf, abs, clamp = task.wait, task.delay, math.rad, math.huge, math.abs, math.clamp
+local cf, v3, angles = CFrame.new, Vector3.new, CFrame.Angles
+local v3_0, cf_0 = v3(0, 0, 0), cf(0, 0, 0)
+
+local c = lp.Character
+if not (c and c.Parent) then
+    return
+end
+
+c:GetPropertyChangedSignal("Parent"):Connect(function()
+    if not (c and c.Parent) then
+        c = nil
+    end
+end)
+
+local clone, destroy, getchildren, getdescendants, isa = c.Clone, c.Destroy, c.GetChildren, c.GetDescendants, c.IsA
+
+local function gp(parent, name, className)
+    if typeof(parent) == "Instance" then
+        for i, v in pairs(getchildren(parent)) do
+            if (v.Name == name) and isa(v, className) then
+                return v
+            end
+        end
+    end
+    return nil
+end
+
+local fenv = getfenv()
+
+local shp = fenv.sethiddenproperty or fenv.set_hidden_property or fenv.set_hidden_prop or fenv.sethiddenprop
+local ssr = fenv.setsimulationradius or fenv.set_simulation_radius or fenv.set_sim_radius or fenv.setsimradius or fenv.setsimrad or fenv.set_sim_rad
+
+healthHide = healthHide and ((method == 0) or (method == 2) or (method == 3)) and gp(c, "Head", "BasePart")
+
+local reclaim, lostpart = reclaim and c.PrimaryPart, nil
+
+local function align(Part0, Part1)
+    
+    local att0 = Instance.new("Attachment")
+    att0.Position, att0.Orientation, att0.Name = v3_0, v3_0, "att0_" .. Part0.Name
+    local att1 = Instance.new("Attachment")
+    att1.Position, att1.Orientation, att1.Name = v3_0, v3_0, "att1_" .. Part1.Name
+
+    if alignmode == 4 then
+    
+        local hide = false
+        if Part0 == healthHide then
+            healthHide = false
+            tdelay(0, function()
+                while twait(2.9) and Part0 and c do
+                    hide = #Part0:GetConnectedParts() == 1
+                    twait(0.1)
+                    hide = false
+                end
+            end)
+        end
+        
+        local rot = rad(0.05)
+        local con0, con1 = nil, nil
+        con0 = stepped:Connect(function()
+            if not (Part0 and Part1) then return con0:Disconnect() and con1:Disconnect() end
+            Part0.RotVelocity = Part1.RotVelocity
+        end)
+        local lastpos = Part0.Position
+        con1 = heartbeat:Connect(function(delta)
+            if not (Part0 and Part1 and att1) then return con0:Disconnect() and con1:Disconnect() end
+            if (not Part0.Anchored) and (Part0.ReceiveAge == 0) then
+                if lostpart == Part0 then
+                    lostpart = nil
+                end
+                local newcf = Part1.CFrame * att1.CFrame
+                if Part1.Velocity.Magnitude > 0.1 then
+                    Part0.Velocity = getNetlessVelocity(Part1.Velocity)
+                else
+                    local vel = (newcf.Position - lastpos) / delta
+                    Part0.Velocity = getNetlessVelocity(vel)
+                    if vel.Magnitude < 1 then
+                        rot = -rot
+                        newcf *= angles(0, 0, rot)
+                    end
+                end
+                lastpos = newcf.Position
+                if lostpart and (Part0 == reclaim) then
+                    newcf = lostpart.CFrame
+                elseif hide then
+                    newcf += v3(0, 3000, 0)
+                end
+                if novoid and (newcf.Y < ws.FallenPartsDestroyHeight + 0.1) then
+                    newcf += v3(0, ws.FallenPartsDestroyHeight + 0.1 - newcf.Y, 0)
+                end
+                Part0.CFrame = newcf
+            elseif (not Part0.Anchored) and (abs(Part0.Velocity.X) < 45) and (abs(Part0.Velocity.Y) < 25) and (abs(Part0.Velocity.Z) < 45) then
+                lostpart = Part0
+            end
+        end)
+    
+    else
+        
+        Part0.CustomPhysicalProperties = physp
+        if (alignmode == 1) or (alignmode == 2) then
+            local ape = Instance.new("AlignPosition")
+            ape.MaxForce, ape.MaxVelocity, ape.Responsiveness = inf, inf, inf
+            ape.ReactionForceEnabled, ape.RigidityEnabled, ape.ApplyAtCenterOfMass = false, true, false
+            ape.Attachment0, ape.Attachment1, ape.Name = att0, att1, "AlignPositionRtrue"
+            ape.Parent = att0
+        end
+        
+        if (alignmode == 2) or (alignmode == 3) then
+            local apd = Instance.new("AlignPosition")
+            apd.MaxForce, apd.MaxVelocity, apd.Responsiveness = inf, inf, inf
+            apd.ReactionForceEnabled, apd.RigidityEnabled, apd.ApplyAtCenterOfMass = false, false, false
+            apd.Attachment0, apd.Attachment1, apd.Name = att0, att1, "AlignPositionRfalse"
+            apd.Parent = att0
+        end
+        
+        local ao = Instance.new("AlignOrientation")
+        ao.MaxAngularVelocity, ao.MaxTorque, ao.Responsiveness = inf, inf, inf
+        ao.PrimaryAxisOnly, ao.ReactionTorqueEnabled, ao.RigidityEnabled = false, false, false
+        ao.Attachment0, ao.Attachment1 = att0, att1
+        ao.Parent = att0
+        
+        local con0, con1 = nil, nil
+        local vel = Part0.Velocity
+        con0 = renderstepped:Connect(function()
+            if not (Part0 and Part1) then return con0:Disconnect() and con1:Disconnect() end
+            Part0.Velocity = vel
+        end)
+        local lastpos = Part0.Position
+        con1 = heartbeat:Connect(function(delta)
+            if not (Part0 and Part1) then return con0:Disconnect() and con1:Disconnect() end
+            vel = Part0.Velocity
+            if Part1.Velocity.Magnitude > 0.01 then
+                Part0.Velocity = getNetlessVelocity(Part1.Velocity)
+            else
+                Part0.Velocity = getNetlessVelocity((Part0.Position - lastpos) / delta)
+            end
+            lastpos = Part0.Position
+        end)
+    
+    end
+
+    att0:GetPropertyChangedSignal("Parent"):Connect(function()
+        Part0 = att0.Parent
+        if not isa(Part0, "BasePart") then
+            att0 = nil
+            if lostpart == Part0 then
+                lostpart = nil
+            end
+            Part0 = nil
+        end
+    end)
+    att0.Parent = Part0
+    
+    att1:GetPropertyChangedSignal("Parent"):Connect(function()
+        Part1 = att1.Parent
+        if not isa(Part1, "BasePart") then
+            att1 = nil
+            Part1 = nil
+        end
+    end)
+    att1.Parent = Part1
+end
+
+local function respawnrequest()
+    local ccfr, c = ws.CurrentCamera.CFrame, lp.Character
+    lp.Character = nil
+    lp.Character = c
+    local con = nil
+    con = ws.CurrentCamera.Changed:Connect(function(prop)
+        if (prop ~= "Parent") and (prop ~= "CFrame") then
+            return
+        end
+        ws.CurrentCamera.CFrame = ccfr
+        con:Disconnect()
+    end)
+end
+
+local destroyhum = (method == 4) or (method == 5)
+local breakjoints = (method == 0) or (method == 4)
+local antirespawn = (method == 0) or (method == 2) or (method == 3)
+
+hatcollide = hatcollide and (method == 0)
+
+addtools = addtools and lp:FindFirstChildOfClass("Backpack")
+
+if type(simrad) ~= "number" then simrad = 1000 end
+if shp and (simradius == "shp") then
+    tdelay(0, function()
+        while c do
+            shp(lp, "SimulationRadius", simrad)
+            heartbeat:Wait()
+        end
+    end)
+elseif ssr and (simradius == "ssr") then
+    tdelay(0, function()
+        while c do
+            ssr(simrad)
+            heartbeat:Wait()
+        end
+    end)
+end
+
+if antiragdoll then
+    antiragdoll = function(v)
+        if isa(v, "HingeConstraint") or isa(v, "BallSocketConstraint") then
+            v.Parent = nil
+        end
+    end
+    for i, v in pairs(getdescendants(c)) do
+        antiragdoll(v)
+    end
+    c.DescendantAdded:Connect(antiragdoll)
+end
+
+if antirespawn then
+    respawnrequest()
+end
+
+if method == 0 then
+    twait(loadtime)
+    if not c then
+        return
+    end
+end
+
+if discharscripts then
+    for i, v in pairs(getdescendants(c)) do
+        if isa(v, "LocalScript") then
+            v.Disabled = true
+        end
+    end
+elseif newanimate then
+    local animate = gp(c, "Animate", "LocalScript")
+    if animate and (not animate.Disabled) then
+        animate.Disabled = true
+    else
+        newanimate = false
+    end
+end
+
+if addtools then
+    for i, v in pairs(getchildren(addtools)) do
+        if isa(v, "Tool") then
+            v.Parent = c
+        end
+    end
+end
+
+pcall(function()
+    settings().Physics.AllowSleep = false
+    settings().Physics.PhysicsEnvironmentalThrottle = Enum.EnviromentalPhysicsThrottle.Disabled
+end)
+
+local OLDscripts = {}
+
+for i, v in pairs(getdescendants(c)) do
+    if v.ClassName == "Script" then
+        OLDscripts[v.Name] = true
+    end
+end
+
+local scriptNames = {}
+
+for i, v in pairs(getdescendants(c)) do
+    if isa(v, "BasePart") then
+        local newName, exists = tostring(i), true
+        while exists do
+            exists = OLDscripts[newName]
+            if exists then
+                newName = newName .. "_"    
+            end
+        end
+        table.insert(scriptNames, newName)
+        Instance.new("Script", v).Name = newName
+    end
+end
+
+local hum = c:FindFirstChildOfClass("Humanoid")
+if hum then
+    for i, v in pairs(hum:GetPlayingAnimationTracks()) do
+        v:Stop()
+    end
+end
+c.Archivable = true
+local cl = clone(c)
+if hum and humState16 then
+    hum:ChangeState(Enum.HumanoidStateType.Physics)
+    if destroyhum then
+        twait(1.6)
+    end
+end
+if destroyhum then
+    pcall(destroy, hum)
+end
+
+if not c then
+    return
+end
+
+local head, torso, root = gp(c, "Head", "BasePart"), gp(c, "Torso", "BasePart") or gp(c, "UpperTorso", "BasePart"), gp(c, "HumanoidRootPart", "BasePart")
+if hatcollide then
+    pcall(destroy, torso)
+    pcall(destroy, root)
+    pcall(destroy, c:FindFirstChildOfClass("BodyColors") or gp(c, "Health", "Script"))
+end
+
+local model = Instance.new("Model", c)
+model:GetPropertyChangedSignal("Parent"):Connect(function()
+    if not (model and model.Parent) then
+        model = nil
+    end
+end)
+
+for i, v in pairs(getchildren(c)) do
+    if v ~= model then
+        if addtools and isa(v, "Tool") then
+            for i1, v1 in pairs(getdescendants(v)) do
+                if v1 and v1.Parent and isa(v1, "BasePart") then
+                    local bv = Instance.new("BodyVelocity")
+                    bv.Velocity, bv.MaxForce, bv.P, bv.Name = v3_0, v3(1000, 1000, 1000), 1250, "bv_" .. v.Name
+                    bv.Parent = v1
+                end
+            end
+        end
+        v.Parent = model
+    end
+end
+
+if breakjoints then
+    model:BreakJoints()
+else
+    if head and torso then
+        for i, v in pairs(getdescendants(model)) do
+            if isa(v, "JointInstance") then
+                local save = false
+                if (v.Part0 == torso) and (v.Part1 == head) then
+                    save = true
+                end
+                if (v.Part0 == head) and (v.Part1 == torso) then
+                    save = true
+                end
+                if save then
+                    if hedafterneck then
+                        hedafterneck = v
+                    end
+                else
+                    pcall(destroy, v)
+                end
+            end
+        end
+    end
+    if method == 3 then
+        task.delay(loadtime, pcall, model.BreakJoints, model)
+    end
+end
+
+cl.Parent = ws
+for i, v in pairs(getchildren(cl)) do
+    v.Parent = c
+end
+pcall(destroy, cl)
+
+local uncollide, noclipcon = nil, nil
+if noclipAllParts then
+    uncollide = function()
+        if c then
+            for i, v in pairs(getdescendants(c)) do
+                if isa(v, "BasePart") then
+                    v.CanCollide = false
+                end
+            end
+        else
+            noclipcon:Disconnect()
+        end
+    end
+else
+    uncollide = function()
+        if model then
+            for i, v in pairs(getdescendants(model)) do
+                if isa(v, "BasePart") then
+                    v.CanCollide = false
+                end
+            end
+        else
+            noclipcon:Disconnect()
+        end
+    end
+end
+noclipcon = stepped:Connect(uncollide)
+uncollide()
+
+for i, scr in pairs(getdescendants(model)) do
+    if (scr.ClassName == "Script") and table.find(scriptNames, scr.Name) then
+        local Part0 = scr.Parent
+        if isa(Part0, "BasePart") then
+            for i1, scr1 in pairs(getdescendants(c)) do
+                if (scr1.ClassName == "Script") and (scr1.Name == scr.Name) and (not scr1:IsDescendantOf(model)) then
+                    local Part1 = scr1.Parent
+                    if (Part1.ClassName == Part0.ClassName) and (Part1.Name == Part0.Name) then
+                        align(Part0, Part1)
+                        pcall(destroy, scr)
+                        pcall(destroy, scr1)
+                        break
+                    end
+                end
+            end
+        end
+    end
+end
+
+for i, v in pairs(getdescendants(c)) do
+    if v and v.Parent and (not v:IsDescendantOf(model)) then
+        if isa(v, "Decal") then
+            v.Transparency = 1
+        elseif isa(v, "BasePart") then
+            v.Transparency = 1
+            v.Anchored = false
+        elseif isa(v, "ForceField") then
+            v.Visible = false
+        elseif isa(v, "Sound") then
+            v.Playing = false
+        elseif isa(v, "BillboardGui") or isa(v, "SurfaceGui") or isa(v, "ParticleEmitter") or isa(v, "Fire") or isa(v, "Smoke") or isa(v, "Sparkles") then
+            v.Enabled = false
+        end
+    end
+end
+
+if newanimate then
+    local animate = gp(c, "Animate", "LocalScript")
+    if animate then
+        animate.Disabled = false
+    end
+end
+
+if addtools then
+    for i, v in pairs(getchildren(c)) do
+        if isa(v, "Tool") then
+            v.Parent = addtools
+        end
+    end
+end
+
+local hum0, hum1 = model:FindFirstChildOfClass("Humanoid"), c:FindFirstChildOfClass("Humanoid")
+if hum0 then
+    hum0:GetPropertyChangedSignal("Parent"):Connect(function()
+        if not (hum0 and hum0.Parent) then
+            hum0 = nil
+        end
+    end)
+end
+if hum1 then
+    hum1:GetPropertyChangedSignal("Parent"):Connect(function()
+        if not (hum1 and hum1.Parent) then
+            hum1 = nil
+        end
+    end)
+
+    ws.CurrentCamera.CameraSubject = hum1
+    local camSubCon = nil
+    local function camSubFunc()
+        camSubCon:Disconnect()
+        if c and hum1 then
+            ws.CurrentCamera.CameraSubject = hum1
+        end
+    end
+    camSubCon = renderstepped:Connect(camSubFunc)
+    if hum0 then
+        hum0:GetPropertyChangedSignal("Jump"):Connect(function()
+            if hum1 then
+                hum1.Jump = hum0.Jump
+            end
+        end)
+    else
+        respawnrequest()
+    end
+end
+
+local rb = Instance.new("BindableEvent", c)
+rb.Event:Connect(function()
+    pcall(destroy, rb)
+    sg:SetCore("ResetButtonCallback", true)
+    if destroyhum then
+        if c then c:BreakJoints() end
+        return
+    end
+    if model and hum0 and (hum0.Health > 0) then
+        model:BreakJoints()
+        hum0.Health = 0
+    end
+    if antirespawn then
+        respawnrequest()
+    end
+end)
+sg:SetCore("ResetButtonCallback", rb)
+
+tdelay(0, function()
+    while c do
+        if hum0 and hum1 then
+            hum1.Jump = hum0.Jump
+        end
+        wait()
+    end
+    sg:SetCore("ResetButtonCallback", true)
+end)
+
+R15toR6 = R15toR6 and hum1 and (hum1.RigType == Enum.HumanoidRigType.R15)
+if R15toR6 then
+    local part = gp(c, "HumanoidRootPart", "BasePart") or gp(c, "UpperTorso", "BasePart") or gp(c, "LowerTorso", "BasePart") or gp(c, "Head", "BasePart") or c:FindFirstChildWhichIsA("BasePart")
+    if part then
+        local cfr = part.CFrame
+        local R6parts = { 
+            head = {
+                Name = "Head",
+                Size = v3(2, 1, 1),
+                R15 = {
+                    Head = 0
+                }
+            },
+            torso = {
+                Name = "Torso",
+                Size = v3(2, 2, 1),
+                R15 = {
+                    UpperTorso = 0.2,
+                    LowerTorso = -0.73
+                }
+            },
+            root = {
+                Name = "HumanoidRootPart",
+                Size = v3(2, 2, 1),
+                R15 = {
+                    HumanoidRootPart = 0
+                }
+            },
+            leftArm = {
+                Name = "Left Arm",
+                Size = v3(1, 2, 1),
+                R15 = {
+                    LeftHand = -0.73,
+                    LeftLowerArm = -0.174,
+                    LeftUpperArm = 0.415
+                }
+            },
+            rightArm = {
+                Name = "Right Arm",
+                Size = v3(1, 2, 1),
+                R15 = {
+                    RightHand = -0.73,
+                    RightLowerArm = -0.174,
+                    RightUpperArm = 0.415
+                }
+            },
+            leftLeg = {
+                Name = "Left Leg",
+                Size = v3(1, 2, 1),
+                R15 = {
+                    LeftFoot = -0.85,
+                    LeftLowerLeg = -0.29,
+                    LeftUpperLeg = 0.49
+                }
+            },
+            rightLeg = {
+                Name = "Right Leg",
+                Size = v3(1, 2, 1),
+                R15 = {
+                    RightFoot = -0.85,
+                    RightLowerLeg = -0.29,
+                    RightUpperLeg = 0.49
+                }
+            }
+        }
+        for i, v in pairs(getchildren(c)) do
+            if isa(v, "BasePart") then
+                for i1, v1 in pairs(getchildren(v)) do
+                    if isa(v1, "Motor6D") then
+                        v1.Part0 = nil
+                    end
+                end
+            end
+        end
+        part.Archivable = true
+        for i, v in pairs(R6parts) do
+            local part = clone(part)
+            part:ClearAllChildren()
+            part.Name, part.Size, part.CFrame, part.Anchored, part.Transparency, part.CanCollide = v.Name, v.Size, cfr, false, 1, false
+            for i1, v1 in pairs(v.R15) do
+                local R15part = gp(c, i1, "BasePart")
+                local att = gp(R15part, "att1_" .. i1, "Attachment")
+                if R15part then
+                    local weld = Instance.new("Weld")
+                    weld.Part0, weld.Part1, weld.C0, weld.C1, weld.Name = part, R15part, cf(0, v1, 0), cf_0, "Weld_" .. i1
+                    weld.Parent = R15part
+                    R15part.Massless, R15part.Name = true, "R15_" .. i1
+                    R15part.Parent = part
+                    if att then
+                        att.Position = v3(0, v1, 0)
+                        att.Parent = part
+                    end
+                end
+            end
+            part.Parent = c
+            R6parts[i] = part
+        end
+        local R6joints = {
+            neck = {
+                Parent = R6parts.torso,
+                Name = "Neck",
+                Part0 = R6parts.torso,
+                Part1 = R6parts.head,
+                C0 = cf(0, 1, 0, -1, 0, 0, 0, 0, 1, 0, 1, -0),
+                C1 = cf(0, -0.5, 0, -1, 0, 0, 0, 0, 1, 0, 1, -0)
+            },
+            rootJoint = {
+                Parent = R6parts.root,
+                Name = "RootJoint" ,
+                Part0 = R6parts.root,
+                Part1 = R6parts.torso,
+                C0 = cf(0, 0, 0, -1, 0, 0, 0, 0, 1, 0, 1, -0),
+                C1 = cf(0, 0, 0, -1, 0, 0, 0, 0, 1, 0, 1, -0)
+            },
+            rightShoulder = {
+                Parent = R6parts.torso,
+                Name = "Right Shoulder",
+                Part0 = R6parts.torso,
+                Part1 = R6parts.rightArm,
+                C0 = cf(1, 0.5, 0, 0, 0, 1, 0, 1, -0, -1, 0, 0),
+                C1 = cf(-0.5, 0.5, 0, 0, 0, 1, 0, 1, -0, -1, 0, 0)
+            },
+            leftShoulder = {
+                Parent = R6parts.torso,
+                Name = "Left Shoulder",
+                Part0 = R6parts.torso,
+                Part1 = R6parts.leftArm,
+                C0 = cf(-1, 0.5, 0, 0, 0, -1, 0, 1, 0, 1, 0, 0),
+                C1 = cf(0.5, 0.5, 0, 0, 0, -1, 0, 1, 0, 1, 0, 0)
+            },
+            rightHip = {
+                Parent = R6parts.torso,
+                Name = "Right Hip",
+                Part0 = R6parts.torso,
+                Part1 = R6parts.rightLeg,
+                C0 = cf(1, -1, 0, 0, 0, 1, 0, 1, -0, -1, 0, 0),
+                C1 = cf(0.5, 1, 0, 0, 0, 1, 0, 1, -0, -1, 0, 0)
+            },
+            leftHip = {
+                Parent = R6parts.torso,
+                Name = "Left Hip" ,
+                Part0 = R6parts.torso,
+                Part1 = R6parts.leftLeg,
+                C0 = cf(-1, -1, 0, 0, 0, -1, 0, 1, 0, 1, 0, 0),
+                C1 = cf(-0.5, 1, 0, 0, 0, -1, 0, 1, 0, 1, 0, 0)
+            }
+        }
+        for i, v in pairs(R6joints) do
+            local joint = Instance.new("Motor6D")
+            for prop, val in pairs(v) do
+                joint[prop] = val
+            end
+            R6joints[i] = joint
+        end
+        if hum1 then
+            hum1.RigType, hum1.HipHeight = Enum.HumanoidRigType.R6, 0
+        end
+    end
+    --the default roblox animate script edited and put in one line
+    local script = gp(c, "Animate", "LocalScript") if not script.Disabled then script:ClearAllChildren() local Torso = gp(c, "Torso", "BasePart") local RightShoulder = gp(Torso, "Right Shoulder", "Motor6D") local LeftShoulder = gp(Torso, "Left Shoulder", "Motor6D") local RightHip = gp(Torso, "Right Hip", "Motor6D") local LeftHip = gp(Torso, "Left Hip", "Motor6D") local Neck = gp(Torso, "Neck", "Motor6D") local Humanoid = c:FindFirstChildOfClass("Humanoid") local pose = "Standing" local currentAnim = "" local currentAnimInstance = nil local currentAnimTrack = nil local currentAnimKeyframeHandler = nil local currentAnimSpeed = 1.0 local animTable = {} local animNames = { idle = { { id = "http://www.roblox.com/asset/?id=180435571", weight = 9 }, { id = "http://www.roblox.com/asset/?id=180435792", weight = 1 } }, walk = { { id = "http://www.roblox.com/asset/?id=180426354", weight = 10 } }, run = { { id = "run.xml", weight = 10 } }, jump = { { id = "http://www.roblox.com/asset/?id=125750702", weight = 10 } }, fall = { { id = "http://www.roblox.com/asset/?id=180436148", weight = 10 } }, climb = { { id = "http://www.roblox.com/asset/?id=180436334", weight = 10 } }, sit = { { id = "http://www.roblox.com/asset/?id=178130996", weight = 10 } }, toolnone = { { id = "http://www.roblox.com/asset/?id=182393478", weight = 10 } }, toolslash = { { id = "http://www.roblox.com/asset/?id=129967390", weight = 10 } }, toollunge = { { id = "http://www.roblox.com/asset/?id=129967478", weight = 10 } }, wave = { { id = "http://www.roblox.com/asset/?id=128777973", weight = 10 } }, point = { { id = "http://www.roblox.com/asset/?id=128853357", weight = 10 } }, dance1 = { { id = "http://www.roblox.com/asset/?id=182435998", weight = 10 }, { id = "http://www.roblox.com/asset/?id=182491037", weight = 10 }, { id = "http://www.roblox.com/asset/?id=182491065", weight = 10 } }, dance2 = { { id = "http://www.roblox.com/asset/?id=182436842", weight = 10 }, { id = "http://www.roblox.com/asset/?id=182491248", weight = 10 }, { id = "http://www.roblox.com/asset/?id=182491277", weight = 10 } }, dance3 = { { id = "http://www.roblox.com/asset/?id=182436935", weight = 10 }, { id = "http://www.roblox.com/asset/?id=182491368", weight = 10 }, { id = "http://www.roblox.com/asset/?id=182491423", weight = 10 } }, laugh = { { id = "http://www.roblox.com/asset/?id=129423131", weight = 10 } }, cheer = { { id = "http://www.roblox.com/asset/?id=129423030", weight = 10 } }, } local dances = {"dance1", "dance2", "dance3"} local emoteNames = { wave = false, point = false, dance1 = true, dance2 = true, dance3 = true, laugh = false, cheer = false} local function configureAnimationSet(name, fileList) if (animTable[name] ~= nil) then for _, connection in pairs(animTable[name].connections) do connection:disconnect() end end animTable[name] = {} animTable[name].count = 0 animTable[name].totalWeight = 0 animTable[name].connections = {} local config = script:FindFirstChild(name) if (config ~= nil) then table.insert(animTable[name].connections, config.ChildAdded:connect(function(child) configureAnimationSet(name, fileList) end)) table.insert(animTable[name].connections, config.ChildRemoved:connect(function(child) configureAnimationSet(name, fileList) end)) local idx = 1 for _, childPart in pairs(config:GetChildren()) do if (childPart:IsA("Animation")) then table.insert(animTable[name].connections, childPart.Changed:connect(function(property) configureAnimationSet(name, fileList) end)) animTable[name][idx] = {} animTable[name][idx].anim = childPart local weightObject = childPart:FindFirstChild("Weight") if (weightObject == nil) then animTable[name][idx].weight = 1 else animTable[name][idx].weight = weightObject.Value end animTable[name].count = animTable[name].count + 1 animTable[name].totalWeight = animTable[name].totalWeight + animTable[name][idx].weight idx = idx + 1 end end end if (animTable[name].count <= 0) then for idx, anim in pairs(fileList) do animTable[name][idx] = {} animTable[name][idx].anim = Instance.new("Animation") animTable[name][idx].anim.Name = name animTable[name][idx].anim.AnimationId = anim.id animTable[name][idx].weight = anim.weight animTable[name].count = animTable[name].count + 1 animTable[name].totalWeight = animTable[name].totalWeight + anim.weight end end end local function scriptChildModified(child) local fileList = animNames[child.Name] if (fileList ~= nil) then configureAnimationSet(child.Name, fileList) end end script.ChildAdded:connect(scriptChildModified) script.ChildRemoved:connect(scriptChildModified) local animator = Humanoid and Humanoid:FindFirstChildOfClass("Animator") or nil if animator then local animTracks = animator:GetPlayingAnimationTracks() for i, track in ipairs(animTracks) do track:Stop(0) track:Destroy() end end for name, fileList in pairs(animNames) do configureAnimationSet(name, fileList) end local toolAnim = "None" local toolAnimTime = 0 local jumpAnimTime = 0 local jumpAnimDuration = 0.3 local toolTransitionTime = 0.1 local fallTransitionTime = 0.3 local jumpMaxLimbVelocity = 0.75 local function stopAllAnimations() local oldAnim = currentAnim if (emoteNames[oldAnim] ~= nil and emoteNames[oldAnim] == false) then oldAnim = "idle" end currentAnim = "" currentAnimInstance = nil if (currentAnimKeyframeHandler ~= nil) then currentAnimKeyframeHandler:disconnect() end if (currentAnimTrack ~= nil) then currentAnimTrack:Stop() currentAnimTrack:Destroy() currentAnimTrack = nil end return oldAnim end local function playAnimation(animName, transitionTime, humanoid) local roll = math.random(1, animTable[animName].totalWeight) local origRoll = roll local idx = 1 while (roll > animTable[animName][idx].weight) do roll = roll - animTable[animName][idx].weight idx = idx + 1 end local anim = animTable[animName][idx].anim if (anim ~= currentAnimInstance) then if (currentAnimTrack ~= nil) then currentAnimTrack:Stop(transitionTime) currentAnimTrack:Destroy() end currentAnimSpeed = 1.0 currentAnimTrack = humanoid:LoadAnimation(anim) currentAnimTrack.Priority = Enum.AnimationPriority.Core currentAnimTrack:Play(transitionTime) currentAnim = animName currentAnimInstance = anim if (currentAnimKeyframeHandler ~= nil) then currentAnimKeyframeHandler:disconnect() end currentAnimKeyframeHandler = currentAnimTrack.KeyframeReached:connect(keyFrameReachedFunc) end end local function setAnimationSpeed(speed) if speed ~= currentAnimSpeed then currentAnimSpeed = speed currentAnimTrack:AdjustSpeed(currentAnimSpeed) end end local function keyFrameReachedFunc(frameName) if (frameName == "End") then local repeatAnim = currentAnim if (emoteNames[repeatAnim] ~= nil and emoteNames[repeatAnim] == false) then repeatAnim = "idle" end local animSpeed = currentAnimSpeed playAnimation(repeatAnim, 0.0, Humanoid) setAnimationSpeed(animSpeed) end end local toolAnimName = "" local toolAnimTrack = nil local toolAnimInstance = nil local currentToolAnimKeyframeHandler = nil local function toolKeyFrameReachedFunc(frameName) if (frameName == "End") then playToolAnimation(toolAnimName, 0.0, Humanoid) end end local function playToolAnimation(animName, transitionTime, humanoid, priority) local roll = math.random(1, animTable[animName].totalWeight) local origRoll = roll local idx = 1 while (roll > animTable[animName][idx].weight) do roll = roll - animTable[animName][idx].weight idx = idx + 1 end local anim = animTable[animName][idx].anim if (toolAnimInstance ~= anim) then if (toolAnimTrack ~= nil) then toolAnimTrack:Stop() toolAnimTrack:Destroy() transitionTime = 0 end toolAnimTrack = humanoid:LoadAnimation(anim) if priority then toolAnimTrack.Priority = priority end toolAnimTrack:Play(transitionTime) toolAnimName = animName toolAnimInstance = anim currentToolAnimKeyframeHandler = toolAnimTrack.KeyframeReached:connect(toolKeyFrameReachedFunc) end end local function stopToolAnimations() local oldAnim = toolAnimName if (currentToolAnimKeyframeHandler ~= nil) then currentToolAnimKeyframeHandler:disconnect() end toolAnimName = "" toolAnimInstance = nil if (toolAnimTrack ~= nil) then toolAnimTrack:Stop() toolAnimTrack:Destroy() toolAnimTrack = nil end return oldAnim end local function onRunning(speed) if speed > 0.01 then playAnimation("walk", 0.1, Humanoid) if currentAnimInstance and currentAnimInstance.AnimationId == "http://www.roblox.com/asset/?id=180426354" then setAnimationSpeed(speed / 14.5) end pose = "Running" else if emoteNames[currentAnim] == nil then playAnimation("idle", 0.1, Humanoid) pose = "Standing" end end end local function onDied() pose = "Dead" end local function onJumping() playAnimation("jump", 0.1, Humanoid) jumpAnimTime = jumpAnimDuration pose = "Jumping" end local function onClimbing(speed) playAnimation("climb", 0.1, Humanoid) setAnimationSpeed(speed / 12.0) pose = "Climbing" end local function onGettingUp() pose = "GettingUp" end local function onFreeFall() if (jumpAnimTime <= 0) then playAnimation("fall", fallTransitionTime, Humanoid) end pose = "FreeFall" end local function onFallingDown() pose = "FallingDown" end local function onSeated() pose = "Seated" end local function onPlatformStanding() pose = "PlatformStanding" end local function onSwimming(speed) if speed > 0 then pose = "Running" else pose = "Standing" end end local function getTool() return c and c:FindFirstChildOfClass("Tool") end local function getToolAnim(tool) for _, c in ipairs(tool:GetChildren()) do if c.Name == "toolanim" and c.className == "StringValue" then return c end end return nil end local function animateTool() if (toolAnim == "None") then playToolAnimation("toolnone", toolTransitionTime, Humanoid, Enum.AnimationPriority.Idle) return end if (toolAnim == "Slash") then playToolAnimation("toolslash", 0, Humanoid, Enum.AnimationPriority.Action) return end if (toolAnim == "Lunge") then playToolAnimation("toollunge", 0, Humanoid, Enum.AnimationPriority.Action) return end end local function moveSit() RightShoulder.MaxVelocity = 0.15 LeftShoulder.MaxVelocity = 0.15 RightShoulder:SetDesiredAngle(3.14 /2) LeftShoulder:SetDesiredAngle(-3.14 /2) RightHip:SetDesiredAngle(3.14 /2) LeftHip:SetDesiredAngle(-3.14 /2) end local lastTick = 0 local function move(time) local amplitude = 1 local frequency = 1 local deltaTime = time - lastTick lastTick = time local climbFudge = 0 local setAngles = false if (jumpAnimTime > 0) then jumpAnimTime = jumpAnimTime - deltaTime end if (pose == "FreeFall" and jumpAnimTime <= 0) then playAnimation("fall", fallTransitionTime, Humanoid) elseif (pose == "Seated") then playAnimation("sit", 0.5, Humanoid) return elseif (pose == "Running") then playAnimation("walk", 0.1, Humanoid) elseif (pose == "Dead" or pose == "GettingUp" or pose == "FallingDown" or pose == "Seated" or pose == "PlatformStanding") then stopAllAnimations() amplitude = 0.1 frequency = 1 setAngles = true end if (setAngles) then local desiredAngle = amplitude * math.sin(time * frequency) RightShoulder:SetDesiredAngle(desiredAngle + climbFudge) LeftShoulder:SetDesiredAngle(desiredAngle - climbFudge) RightHip:SetDesiredAngle(-desiredAngle) LeftHip:SetDesiredAngle(-desiredAngle) end local tool = getTool() if tool and tool:FindFirstChild("Handle") then local animStringValueObject = getToolAnim(tool) if animStringValueObject then toolAnim = animStringValueObject.Value animStringValueObject.Parent = nil toolAnimTime = time + .3 end if time > toolAnimTime then toolAnimTime = 0 toolAnim = "None" end animateTool() else stopToolAnimations() toolAnim = "None" toolAnimInstance = nil toolAnimTime = 0 end end Humanoid.Died:connect(onDied) Humanoid.Running:connect(onRunning) Humanoid.Jumping:connect(onJumping) Humanoid.Climbing:connect(onClimbing) Humanoid.GettingUp:connect(onGettingUp) Humanoid.FreeFalling:connect(onFreeFall) Humanoid.FallingDown:connect(onFallingDown) Humanoid.Seated:connect(onSeated) Humanoid.PlatformStanding:connect(onPlatformStanding) Humanoid.Swimming:connect(onSwimming) game:GetService("Players").LocalPlayer.Chatted:connect(function(msg) local emote = "" if msg == "/e dance" then emote = dances[math.random(1, #dances)] elseif (string.sub(msg, 1, 3) == "/e ") then emote = string.sub(msg, 4) elseif (string.sub(msg, 1, 7) == "/emote ") then emote = string.sub(msg, 8) end if (pose == "Standing" and emoteNames[emote] ~= nil) then playAnimation(emote, 0.1, Humanoid) end end) playAnimation("idle", 0.1, Humanoid) pose = "Standing" tdelay(0, function() while c do local _, time = wait(0.1) if (script.Parent == c) and (not script.Disabled) then move(time) end end end) end 
+end
+
+local torso1 = torso
+torso = gp(c, "Torso", "BasePart") or ((not R15toR6) and gp(c, torso.Name, "BasePart"))
+if (typeof(hedafterneck) == "Instance") and head and torso and torso1 then
+    local conNeck, conTorso, conTorso1 = nil, nil, nil
+    local aligns = {}
+    local function enableAligns()
+        conNeck:Disconnect()
+        conTorso:Disconnect()
+        conTorso1:Disconnect()
+        for i, v in pairs(aligns) do
+            v.Enabled = true
+        end
+    end
+    conNeck = hedafterneck.Changed:Connect(function(prop)
+        if table.find({"Part0", "Part1", "Parent"}, prop) then
+            enableAligns()
+        end
+    end)
+    conTorso = torso:GetPropertyChangedSignal("Parent"):Connect(enableAligns)
+    conTorso1 = torso1:GetPropertyChangedSignal("Parent"):Connect(enableAligns)
+    for i, v in pairs(getdescendants(head)) do
+        if isa(v, "AlignPosition") or isa(v, "AlignOrientation") then
+            i = tostring(i)
+            aligns[i] = v
+            v:GetPropertyChangedSignal("Parent"):Connect(function()
+                aligns[i] = nil
+            end)
+            v.Enabled = false
+        end
+    end
+end
+
+local flingpart0 = gp(model, flingpart, "BasePart") or gp(gp(model, flingpart, "Accessory"), "Handle", "BasePart")
+local flingpart1 = gp(c, flingpart, "BasePart") or gp(gp(c, flingpart, "Accessory"), "Handle", "BasePart")
+
+local fling = function() end
+if flingpart0 and flingpart1 then
+    flingpart0:GetPropertyChangedSignal("Parent"):Connect(function()
+        if not (flingpart0 and flingpart0.Parent) then
+            flingpart0 = nil
+            fling = function() end
+        end
+    end)
+    flingpart0.Archivable = true
+    flingpart1:GetPropertyChangedSignal("Parent"):Connect(function()
+        if not (flingpart1 and flingpart1.Parent) then
+            flingpart1 = nil
+            fling = function() end
+        end
+    end)
+    local att0 = gp(flingpart0, "att0_" .. flingpart0.Name, "Attachment")
+    local att1 = gp(flingpart1, "att1_" .. flingpart1.Name, "Attachment")
+    if att0 and att1 then
+        att0:GetPropertyChangedSignal("Parent"):Connect(function()
+            if not (att0 and att0.Parent) then
+                att0 = nil
+                fling = function() end
+            end
+        end)
+        att1:GetPropertyChangedSignal("Parent"):Connect(function()
+            if not (att1 and att1.Parent) then
+                att1 = nil
+                fling = function() end
+            end
+        end)
+        local lastfling = nil
+        local mouse = lp:GetMouse()
+        fling = function(target, duration, rotVelocity)
+            if typeof(target) == "Instance" then
+                if isa(target, "BasePart") then
+                    target = target.Position
+                elseif isa(target, "Model") then
+                    target = gp(target, "HumanoidRootPart", "BasePart") or gp(target, "Torso", "BasePart") or gp(target, "UpperTorso", "BasePart") or target:FindFirstChildWhichIsA("BasePart")
+                    if target then
+                        target = target.Position
+                    else
+                        return
+                    end
+                elseif isa(target, "Humanoid") then
+                    target = target.Parent
+                    if not (target and isa(target, "Model")) then
+                        return
+                    end
+                    target = gp(target, "HumanoidRootPart", "BasePart") or gp(target, "Torso", "BasePart") or gp(target, "UpperTorso", "BasePart") or target:FindFirstChildWhichIsA("BasePart")
+                    if target then
+                        target = target.Position
+                    else
+                        return
+                    end
+                else
+                    return
+                end
+            elseif typeof(target) == "CFrame" then
+                target = target.Position
+            elseif typeof(target) ~= "Vector3" then
+                target = mouse.Hit
+                if target then
+                    target = target.Position
+                else
+                    return
+                end
+            end
+            if target.Y < ws.FallenPartsDestroyHeight + 5 then
+                target = v3(target.X, ws.FallenPartsDestroyHeight + 5, target.Z)
+            end
+            lastfling = target
+            if type(duration) ~= "number" then
+                duration = tonumber(duration) or 0.5
+            end
+            if typeof(rotVelocity) ~= "Vector3" then
+                rotVelocity = v3(20000, 20000, 20000)
+            end
+            if not (target and flingpart0 and flingpart1 and att0 and att1) then
+                return
+            end
+            flingpart0.Archivable = true
+            local flingpart = clone(flingpart0)
+            flingpart.Transparency = 1
+            flingpart.CanCollide = false
+            flingpart.Name = "flingpart_" .. flingpart0.Name
+            flingpart.Anchored = true
+            flingpart.Velocity = v3_0
+            flingpart.RotVelocity = v3_0
+            flingpart.Position = target
+            flingpart:GetPropertyChangedSignal("Parent"):Connect(function()
+                if not (flingpart and flingpart.Parent) then
+                    flingpart = nil
+                end
+            end)
+            flingpart.Parent = flingpart1
+            if flingpart0.Transparency > 0.5 then
+                flingpart0.Transparency = 0.5
+            end
+            att1.Parent = flingpart
+            local con = nil
+            local rotchg = v3(0, rotVelocity.Unit.Y * -1000, 0)
+            con = heartbeat:Connect(function(delta)
+                if target and (lastfling == target) and flingpart and flingpart0 and flingpart1 and att0 and att1 then
+                    flingpart.Orientation += rotchg * delta
+                    flingpart0.RotVelocity = rotVelocity
+                else
+                    con:Disconnect()
+                end
+            end)
+            if alignmode ~= 4 then
+                local con = nil
+                con = renderstepped:Connect(function()
+                    if flingpart0 and target then
+                        flingpart0.RotVelocity = v3_0
+                    else
+                        con:Disconnect()
+                    end
+                end)
+            end
+            twait(duration)
+            if lastfling ~= target then
+                if flingpart then
+                    if att1 and (att1.Parent == flingpart) then
+                        att1.Parent = flingpart1
+                    end
+                    pcall(destroy, flingpart)
+                end
+                return
+            end
+            target = nil
+            if not (flingpart and flingpart0 and flingpart1 and att0 and att1) then
+                return
+            end
+            flingpart0.RotVelocity = v3_0
+            att1.Parent = flingpart1
+            pcall(destroy, flingpart)
+        end
+    end
+end
+
+--lp:GetMouse().Button1Down:Connect(fling) --click fling
 end)
 BFD1:Button("仿物理枪", function()
 --Physics gun
@@ -10692,7 +11097,111 @@ BFD1:Button("角色视角锁定", function()
     loadstring(game:HttpGet("https://raw.githubusercontent.com/cutwire2/cutwire2/refs/heads/main/charalock"))()
 end)
 BFD1:Button("角色数据1", function()
-loadstring(game:HttpGet("https://pastebin.com/raw/RhBR8wcM"))()
+_G["a1"] = Instance.new("ScreenGui")
+_G["a1"].Name = ""
+_G["a1"].ResetOnSpawn = false
+_G["a1"].Parent = game.Players.LocalPlayer:WaitForChild("PlayerGui")
+
+_G["b2"] = Instance.new("Frame")
+_G["b2"].Size = UDim2.new(0, 500, 0, 400)
+_G["b2"].Position = UDim2.new(0, 10, 0, 10)
+_G["b2"].BackgroundTransparency = 1
+_G["b2"].BorderSizePixel = 0
+_G["b2"].Parent = _G["a1"]
+
+_G["c3"] = Instance.new("TextLabel")
+_G["c3"].Size = UDim2.new(1, 0, 1, 0)
+_G["c3"].Position = UDim2.new(0, 0, 0, 0)
+_G["c3"].BackgroundTransparency = 1
+_G["c3"].TextColor3 = Color3.fromRGB(0, 255, 0)
+_G["c3"].Font = Enum.Font.Code
+_G["c3"].TextSize = 14
+_G["c3"].TextXAlignment = Enum.TextXAlignment.Left
+_G["c3"].TextYAlignment = Enum.TextYAlignment.Top
+_G["c3"].RichText = true
+_G["c3"].TextStrokeTransparency = 0
+_G["c3"].TextStrokeColor3 = Color3.fromRGB(0,0,0)
+_G["c3"].Text = "<b>Loading...</b>"
+_G["c3"].Parent = _G["b2"]
+
+local rs = game:GetService("RunService")
+local us = game:GetService("UserInputService")
+local st = game:GetService("Stats")
+
+_G["f6"], _G["g7"], _G["h8"] = 0, 0, 0
+rs.Heartbeat:Connect(function(dt) _G["f6"] = dt*1000 end)
+rs.RenderStepped:Connect(function(dt) _G["g7"] = dt*1000 end)
+rs.Stepped:Connect(function(_, dt) _G["h8"] = dt*1000 end)
+
+_G["i9"], _G["j0"], _G["k1"], _G["l2"] = false, nil, nil, nil
+local function m3(inp)
+	if not _G["i9"] then return end
+	local delta = inp.Position - _G["k1"]
+	_G["b2"].Position = UDim2.new(
+		_G["l2"].X.Scale, math.clamp(_G["l2"].X.Offset + delta.X, 0, workspace.CurrentCamera.ViewportSize.X - _G["b2"].AbsoluteSize.X),
+		_G["l2"].Y.Scale, math.clamp(_G["l2"].Y.Offset + delta.Y, 0, workspace.CurrentCamera.ViewportSize.Y - _G["b2"].AbsoluteSize.Y)
+	)
+end
+
+_G["b2"].InputBegan:Connect(function(inp)
+	if inp.UserInputType == Enum.UserInputType.MouseButton1 then
+		_G["i9"] = true
+		_G["k1"] = inp.Position
+		_G["l2"] = _G["b2"].Position
+		inp.Changed:Connect(function()
+			if inp.UserInputState == Enum.UserInputState.End then
+				_G["i9"] = false
+			end
+		end)
+	end
+end)
+
+_G["b2"].InputChanged:Connect(function(inp)
+	if inp.UserInputType == Enum.UserInputType.MouseMovement then
+		_G["j0"] = inp
+	end
+end)
+
+us.InputChanged:Connect(function(inp)
+	if inp == _G["j0"] then m3(inp) end
+end)
+
+local fpsCounter = 0
+local currentFPS = 0
+local lastTick = tick()
+local startTime = os.time()
+
+rs.RenderStepped:Connect(function()
+	fpsCounter += 1
+	local now = tick()
+	if now - lastTick >= 1 then
+		currentFPS = fpsCounter
+		fpsCounter = 0
+		lastTick = now
+	end
+
+	local ping = st.Network.ServerStatsItem["Data Ping"]:GetValueString()
+	local memTotal = math.floor(st:GetTotalMemoryUsageMb())
+	local memLua = math.floor(collectgarbage("count")/1024)
+	local parts = #workspace:GetDescendants()
+	local players = #game.Players:GetPlayers()
+	local uptime = os.time() - startTime
+	local h = math.floor(uptime/3600)
+	local m = math.floor(uptime%3600/60)
+	local s = uptime%60
+
+	_G["c3"].Text = string.format([[<b>玩家实时数据帧率:</b> %d
+<b>网络延迟:</b> %s
+<b>总内存:</b> %d MB
+<b>Lua 内存:</b> %d MB
+<b>零件数:</b> %d
+<b>玩家数:</b> %d
+<b>心跳间隔:</b> %.2f ms
+<b>渲染步进:</b> %.2f ms
+<b>步进时间:</b> %.2f ms
+<b>运行时长:</b> %02d:%02d:%02d]],
+		currentFPS, ping, memTotal, memLua, parts, players, _G["f6"], _G["g7"], _G["h8"], h, m, s)
+end)
 end)
 BFD1:Button("角色数据2", function()
 local Players = game:GetService("Players")
@@ -10743,6 +11252,9 @@ while true do
 	watermark.Text = table.concat(textLines, " | ")
 	wait(0.1)
 end
+end)
+BFD1:Button("可设置碰撞力", function()
+    loadstring(game:HttpGet("https://raw.githubusercontent.com/1379qpalzmtygvezimaliexcvbnqplasdfg/17867876100/refs/heads/main/%E6%9D%80.txt"))()
 end)
 
 local TaB = Window:Tab("FE", '5436396975')
@@ -10840,18 +11352,6 @@ end)
 FE:Button("猫娘", function()
     loadstring(game:HttpGet("https://raw.githubusercontent.com/VCardValidator/r0qc728y34d/main/14_3"))()
 end)
-local backdoor = Window:Tab("与黑客", '5436396975')
-local backdoor1 = backdoor:section("脚本", true)
-backdoor1:Button("快乐中心", function()
- loadstring(game:HttpGet("https://pastebin.com/raw/8sv4bsPa"))()
-end)
-backdoor1:Button("后门v6x", function()
- loadstring(game:HttpGet("https://raw.githubusercontent.com/iK4oS/backdoor.exe/v6x/source.lua"))()
-end)
-backdoor1:Button("汉化后门", function()
- loadstring(game:HttpGet("https://raw.githubusercontent.com/pijiaobenMSJMleng/backdoor/refs/heads/main/backdoor.lua"))()
-end)
-
 local hackers = Window:Tab("工具", '5436396975')
 local hackers1 = hackers:section("666黑客", true)
 hackers1:Button("Dex资源管理器(部份汉化)", function()
@@ -10867,270 +11367,7 @@ hackers1:Button("Simple Spy V3抓包工具", function()
      loadstring(game:HttpGet("https://raw.githubusercontent.com/infyiff/backup/main/SimpleSpyV3/main.lua"))()
 end)
 hackers1:Button("链接抓包工具(链接间谍)", function()
-local WindUI = loadstring(game:HttpGet("https://github.com/Footagesus/WindUI/releases/latest/download/main.lua"))()
-local fileSupport = writefile and isfile and makefolder and listfiles
-
---@ SkidSpy 配置
-local Config = {
-    FileSaving = false,  -- 文件保存
-    Format = false       -- 格式化
-}
-
---@ 删除所有日志 
-local Logs = {} --@ 请勿删除此行...
-
---@ 写入文件夹
-if fileSupport then
-    pcall(function() 
-        if not isfolder("Skid-Spy") then 
-            makefolder("Skid-Spy") 
-        end
-    end)
-end
-
---@ 创建窗口
-local Window = WindUI:CreateWindow({
-    Title = "SkidSpy-V2",
-    Icon = 79091632739713,
-    Author = "@whoiscookie",
-    Folder = "",
-})
-
-Window:Tag({
-    Title = "测试版",
-    Color = Color3.fromHex("#30ff6a")
-})
-
-local ATab = Window:Tab({
-    Title = "主界面",
-    Icon = "book-alert",
-    Locked = false,
-})
-
-local Paragraph = ATab:Paragraph({
-    Title = "信息",
-    Desc = "欢迎使用 Skid-Spy v2，一款高级 HTTP 监听工具。我们希望您喜欢这个脚本！如果有任何问题，请随时加入我们的 Discord 并提问。如果您遇到任何错误，请在 Discord 上私信 @whoiscookie！",
-    Color = "Red",
-    Image = "book-user",
-    ImageSize = 30,
-    Buttons = {
-        {
-            Icon = "link",
-            Title = "复制 Discord 链接",
-            Callback = function() 
-                    setclipboard("https://discord.gg/dHaeNgV9ym")
-                end,
-        }
-    }
-})
-
-local Section = ATab:Section({ 
-    Title = "Skid-Spy 设置",
-    TextXAlignment = "Left",
-    TextSize = 17,
-})
-
-local Toggle = ATab:Toggle({
-    Title = "启用文件保存",
-    Desc = "启用文件保存功能，将所有 SkidSpy 日志保存到您的执行器文件夹中",
-    Icon = "file-json",
-    Type = "Checkbox",
-    Default = false,
-    Callback = function(state) 
-        Config.FileSaving = state
-    end
-})
-
-local ToggleJson = ATab:Toggle({
-    Title = "格式化 JSON 正文",
-    Desc = "格式化有效的 JSON 请求正文以提高可读性",
-    Icon = "file-code",
-    Type = "Checkbox",
-    Default = false,
-    Callback = function(state) 
-        Config.Format = state
-    end
-})
-
---@ 标签页
-local LogTab = Window:Tab({Title = "请求记录", Icon = "antenna", Locked = false})
-
-LogTab:Button({
-    Title = "删除所有日志",
-    Desc = "点击此按钮将删除所有执行器日志。",
-    Callback = function()
-        for _, log in ipairs(Logs) do
-            log:Destroy()
-        end
-        table.clear(Logs)
-    end,
-})
-local Section = LogTab:Section({ 
-    Title = "HTTP 请求",
-    Icon = "move-down",
-    TextXAlignment = "Left",
-    TextSize = 17, -- 默认大小
-})
-
---@ 日志记录功能
-local function a(method, url, headers, body)
-    local entry = tostring(url)
-    local formattedBody = body or ""
-
-    --@ 请求头 (如果可用则使用序列化器)
-    if headers and next(headers) then
-        entry = entry .. "\n\n请求头 = " .. Serializer.Serialize(headers)
-    end
-
-    --@ 请求正文 
-    if Config.Format and body and body ~= "" then
-    local ok, parsed = pcall(function()
-        return HttpService:JSONDecode(body)
-    end)
-    if ok then
-        formattedBody = "[JSON]\n" .. HttpService:JSONEncode(parsed, true) ..
-                        "\n\n[Lua]\n" .. Serializer.Serialize(parsed)
-    else
-        formattedBody = Serializer.FormatString(body)
-    end
-end
-
-    if formattedBody and formattedBody ~= "" then
-        entry = entry .. "\n\n请求正文 = " .. formattedBody
-    end
-
-    --@ 文件保存
-    if Config.FileSaving and fileSupport then
-        local timeStamp = os.date("%Y-%m-%d %H-%M-%S")
-        local fn = string.format("Skid-Spy/%s-%s.spy", method, timeStamp)
-        local content = string.format("[ SkidSpy 日志 ]\n时间: %s\n方法: %s\nURL: %s\n\n", timeStamp, method, tostring(url))
-
-        if headers and next(headers) then
-            content = content .. "请求头:\n" .. Serializer.Serialize(headers) .. "\n"
-        end
-
-        if body and body ~= "" then
-            content = content .. "\n请求正文:\n" .. formattedBody .. "\n"
-        end
-
-        content = content .. "\n加入我们的 Discord!\nhttps://discord.gg/dHaeNgV9ym"
-        writefile(fn, content)
-    end
-    
-    --@ SigmaMango
-    local buttons = {}
-    table.insert(buttons, {
-        Icon = "files",
-        Title = "复制数据",
-        Callback = function()
-            local clip = ("%s %s"):format(method, url)
-            if headers and next(headers) then
-                clip = clip .. "\n请求头:\n" .. Serializer.Serialize(headers)
-            end
-            if body and body ~= "" then
-                clip = clip .. "\n请求正文:\n" .. formattedBody
-            end
-            setclipboard(clip)
-        end,
-    })
-
-    --@ 日志显示
-    local logEntry
-    if (headers and next(headers)) or (body and body ~= "") then
-        logEntry = LogTab:Code({
-            Title = tostring(method) .. " 请求",
-            Code = entry,
-            Language = "luau",
-            Theme = "dark",
-            Buttons = buttons,
-        })
-    else
-        logEntry = LogTab:Paragraph({
-            Title = tostring(method),
-            Desc = tostring(url),
-            Color = "Red",
-            Image = "link",
-            Buttons = buttons,
-        })
-    end
-
-    table.insert(Logs, logEntry)
-end
-
---@ 
-task.delay(math.random(3, 5), function()
-    WindUI:Notify({
-        Title = "SkidSpy",
-        Content = "SkidSpy 已完全加载！",
-        Duration = 3,
-        Icon = "check",
-    })
-
-    local oldHttpPost
-    oldHttpPost = hookfunction(game.HttpPost, function(self, url, body, contentType, compress, headers)
-        a("POST", url, headers, body)
-        return oldHttpPost(self, url, body, contentType, compress, headers)
-    end)
-
-    local oldHttpGet
-    oldHttpGet = hookfunction(game.HttpGet, function(self, url, ...)
-    a("", url)
-    return oldHttpGet(self, url, ...)
-    end)
-
-    local oldHttpRequest
-    if request or http_request then
-        oldHttpRequest = hookfunction(request or http_request, function(data, ...)
-            if typeof(data) == "table" and data.Url then
-                a("Request", data.Url, data.Headers, data.Body)
-            end
-            return oldHttpRequest(data, ...)
-        end)
-    end
-
-    local oldHttpPostAsync
-    oldHttpPostAsync = hookfunction(game.HttpPostAsync, function(self, url, body, contentType, compress, headers)
-        a("PostAsync", url, headers, body)
-        return oldHttpPostAsync(self, url, body, contentType, compress, headers)
-    end)
-
-    local oldHttpRequestAsync
-    oldHttpRequestAsync = hookfunction(HttpService.RequestAsync, function(self, data, ...)
-        if typeof(data) == "table" and data.Url then
-            a("RequestAsync", data.Url, data.Headers, data.Body)
-        end
-        return oldHttpRequestAsync(self, data, ...)
-    end)
-
-    local oldHttpGetAsync
-    oldHttpGetAsync = hookfunction(game.HttpGetAsync, function(self, url, ...)
-        a("GetAsync", url)
-        return oldHttpGetAsync(self, url, ...)
-    end)
-end)
-
-local OldNamecall
-OldNamecall = hookmetamethod(game, "__namecall", newcclosure(function(Self, ...)
-    local Method = getnamecallmethod()
-    if not checkcaller() and table.find({"Request", "RequestAsync", "Post", "PostAsync", "Get", "GetAsync"}, Method) then
-        local data = ...
-        if typeof(data) == "table" and data.Url then
-         a("Request:", data.Url, data.Headers, data.Body)
-        end
-    end
-        
-    if Method == "Shutdown" and Self == game then
-        print("[SkidSpy] 已阻止 game:Shutdown")
-        return nil
-    end
-
-    if Method == "Kick" and Self == game.Players.LocalPlayer then
-        print("[SkidSpy] 已阻止 LocalPlayer:Kick()")
-        return nil
-    end
-            
-    return OldNamecall(Self, ...)
-end))
+     loadstring(game:HttpGet("https://raw.githubusercontent.com/CookieCrumble2/SkidSpy/refs/heads/SkidSpy-V2/src/Serializer.luau"))()
 end)
 hackers1:Button("链接抓包工具(链接间谍2)", function()
      loadstring(game:HttpGet("https://raw.githubusercontent.com/Hm5011/hussain/refs/heads/main/Links%20Spy"))()
@@ -11586,6 +11823,343 @@ end)
 end)
 hackers1:Button("复制作弊网站大全(注入器和一些工具)", function()
      setclipboard("https://wearedevs.net")
+end)
+
+local HttpService = game:GetService("HttpService")
+local Players = game:GetService("Players")
+local RunService = game:GetService("RunService")
+local player = Players.LocalPlayer
+local playerGui = player:WaitForChild("PlayerGui")
+local CoreGui = game:GetService("CoreGui")
+
+local TARGET_LANGUAGE = "zh-CN" -- 固定翻译成简体中文
+local SCAN_INTERVAL = 2 -- 每2秒扫描一次
+local MAX_TEXT_LENGTH = 500 -- 最大文本长度限制
+
+local translatedCache = {}
+local translatedObjects = {}
+local isTranslationEnabled = false
+local connection = nil
+
+-- 危险指令列表
+local DANGEROUS_COMMANDS = {
+    "neon", "shine", "ghost", "gold", "spin", 
+    "bighead", "smallhead", "giantdwarf", "squash"
+}
+
+-- 支持的UI元素类型
+local SUPPORTED_UI_TYPES = {
+    "TextLabel", "TextButton", "TextBox", "TextLabel", 
+    "Frame", "ScrollingFrame", "ImageButton", "ImageLabel"
+}
+
+-- 语言检测模式
+local LANGUAGE_PATTERNS = {
+    -- 中文 (简体)
+    ["zh-CN"] = {
+        pattern = "[\199-\244][\128-\191]*[\128-\191]",
+        exclude = "[\227][\128-\191][\128-\191]" -- 排除繁体中文特征
+    },
+    -- 中文 (繁体)
+    ["zh-TW"] = {
+        pattern = "[\227][\128-\191][\128-\191]"
+    },
+    -- 日语
+    ["ja"] = {
+        pattern = "[\123-\125]|[\199-\244][\128-\191]*[\128-\191]",
+        exclude = "[\199-\244][\128-\191]*[\128-\191]" -- 排除中文特征
+    },
+    -- 韩语
+    ["ko"] = {
+        pattern = "[\234-\235][\128-\191][\128-\191]|[\236-\237][\128-\191][\128-\191]"
+    },
+    -- 阿拉伯语
+    ["ar"] = {
+        pattern = "[\216-\219][\128-\191]"
+    },
+    -- 俄语
+    ["ru"] = {
+        pattern = "[\208-\209][\128-\191]"
+    },
+    -- 泰语
+    ["th"] = {
+        pattern = "[\224-\231][\128-\191]"
+    },
+    -- 默认英语
+    ["en"] = {
+        pattern = "[A-Za-z]",
+        exclude = "[\199-\244][\128-\191]*[\128-\191]" -- 排除非拉丁字符
+    }
+}
+
+-- 检查是否为危险文本
+local function isDangerousText(text)
+    if not text or type(text) ~= "string" then return false end
+    local lowerText = text:lower()
+    for _, cmd in ipairs(DANGEROUS_COMMANDS) do
+        if lowerText:find(cmd) then
+            return true
+        end
+    end
+    return false
+end
+
+-- 检查是否需要跳过翻译
+local function shouldSkipTranslation(text)
+    if not text or text == "" or translatedCache[text] then
+        return true
+    end
+    
+    -- 跳过纯数字、特殊字符和过长的文本
+    if text:match("^%s*$") or 
+       text:match("^[0-9%.%s,:/]+$") or 
+       #text > MAX_TEXT_LENGTH or
+       isDangerousText(text) then
+        translatedCache[text] = text
+        return true
+    end
+    
+    return false
+end
+
+-- 增强的语言检测函数
+local function detectLanguage(text)
+    if not text or type(text) ~= "string" or text == "" then
+        return "en" -- 默认英语
+    end
+    
+    -- 检查是否是中文
+    if text:match(LANGUAGE_PATTERNS["zh-CN"].pattern) and 
+       (not LANGUAGE_PATTERNS["zh-CN"].exclude or not text:match(LANGUAGE_PATTERNS["zh-CN"].exclude)) then
+        return "zh-CN"
+    end
+    
+    -- 检查是否是繁体中文
+    if text:match(LANGUAGE_PATTERNS["zh-TW"].pattern) then
+        return "zh-TW"
+    end
+    
+    -- 检查是否是日语
+    if text:match(LANGUAGE_PATTERNS["ja"].pattern) and 
+       (not LANGUAGE_PATTERNS["ja"].exclude or not text:match(LANGUAGE_PATTERNS["ja"].exclude)) then
+        return "ja"
+    end
+    
+    -- 检查是否是韩语
+    if text:match(LANGUAGE_PATTERNS["ko"].pattern) then
+        return "ko"
+    end
+    
+    -- 检查是否是阿拉伯语
+    if text:match(LANGUAGE_PATTERNS["ar"].pattern) then
+        return "ar"
+    end
+    
+    -- 检查是否是俄语
+    if text:match(LANGUAGE_PATTERNS["ru"].pattern) then
+        return "ru"
+    end
+    
+    -- 检查是否是泰语
+    if text:match(LANGUAGE_PATTERNS["th"].pattern) then
+        return "th"
+    end
+    
+    -- 默认认为是英语
+    return "en"
+end
+
+-- 翻译函数
+local function translate(text)
+    if shouldSkipTranslation(text) then
+        return translatedCache[text] or text
+    end
+
+    -- 检测源语言
+    local sourceLang = detectLanguage(text)
+    
+    -- 如果检测到已经是中文，直接返回
+    if sourceLang == "zh-CN" or sourceLang == "zh-TW" then
+        translatedCache[text] = text
+        return text
+    end
+
+    -- 使用备选翻译API（如果Google翻译失败）
+    local function tryAlternativeAPI()
+        local success, response = pcall(function()
+            return game:HttpGet(
+                ("https://api.mymemory.translated.net/get?q=%s&langpair=%s|%s")
+                :format(HttpService:UrlEncode(text), sourceLang, TARGET_LANGUAGE)
+            )
+        end)
+        
+        if success and response then
+            local ok, data = pcall(HttpService.JSONDecode, HttpService, response)
+            if ok and data and data.responseData and data.responseData.translatedText then
+                return data.responseData.translatedText
+            end
+        end
+        return nil
+    end
+
+    -- 尝试使用Google翻译API，但指定明确的源语言
+    local success, response = pcall(function()
+        return game:HttpGet(
+            ("https://translate.googleapis.com/translate_a/single?client=gtx&sl=%s&tl=%s&dt=t&q=%s")
+            :format(sourceLang, TARGET_LANGUAGE, HttpService:UrlEncode(text))
+        )
+    end)
+
+    if success and response then
+        local ok, data = pcall(HttpService.JSONDecode, HttpService, response)
+        if ok and data and data[1] then
+            local translatedText = ""
+            for _, segment in ipairs(data[1]) do
+                if segment[1] then
+                    translatedText = translatedText .. segment[1]
+                end
+            end
+            
+            if translatedText ~= "" and translatedText ~= text then
+                translatedCache[text] = translatedText
+                print("翻译: \"" .. text .. "\" -> \"" .. translatedText .. "\"")
+                return translatedText
+            end
+        end
+    end
+
+    -- 尝试备选API
+    local altTranslation = tryAlternativeAPI()
+    if altTranslation then
+        translatedCache[text] = altTranslation
+        print("备选API翻译: \"" .. text .. "\" -> \"" .. altTranslation .. "\"")
+        return altTranslation
+    end
+
+    translatedCache[text] = text
+    return text -- 出错时返回原文
+end
+
+-- 检查UI元素是否有文本内容
+local function hasTextContent(gui)
+    if gui:IsA("TextLabel") or gui:IsA("TextButton") or gui:IsA("TextBox") then
+        return gui.Text and gui.Text ~= ""
+    elseif gui:IsA("ImageButton") or gui:IsA("ImageLabel") then
+        return gui:GetAttribute("Text") or gui.Name ~= ""
+    end
+    return false
+end
+
+-- 获取UI元素的文本内容
+local function getTextContent(gui)
+    if gui:IsA("TextLabel") or gui:IsA("TextButton") or gui:IsA("TextBox") then
+        return gui.Text
+    elseif gui:IsA("ImageButton") or gui:IsA("ImageLabel") then
+        return gui:GetAttribute("Text") or gui.Name
+    end
+    return nil
+end
+
+-- 设置UI元素的文本内容
+local function setTextContent(gui, text)
+    if gui:IsA("TextLabel") or gui:IsA("TextButton") or gui:IsA("TextBox") then
+        gui.Text = text
+    elseif gui:IsA("ImageButton") or gui:IsA("ImageLabel") then
+        gui:SetAttribute("OriginalText", getTextContent(gui))
+        gui:SetAttribute("Text", text)
+    end
+end
+
+-- 扫描并翻译UI元素
+local function scanAndTranslate()
+    local count = 0
+    
+    -- 扫描PlayerGui
+    for _, gui in ipairs(playerGui:GetDescendants()) do
+        if not translatedObjects[gui] and hasTextContent(gui) then
+            local text = getTextContent(gui)
+            if text and text ~= "" then
+                translatedObjects[gui] = true
+                local translatedText = translate(text)
+                if getTextContent(gui) == text then -- 确保文本没有被修改过
+                    setTextContent(gui, translatedText)
+                    count = count + 1
+                end
+            end
+        end
+    end
+    
+    -- 扫描CoreGui（游戏界面元素）
+    for _, gui in ipairs(CoreGui:GetDescendants()) do
+        if not translatedObjects[gui] and hasTextContent(gui) then
+            local text = getTextContent(gui)
+            if text and text ~= "" then
+                translatedObjects[gui] = true
+                local translatedText = translate(text)
+                if getTextContent(gui) == text then -- 确保文本没有被修改过
+                    setTextContent(gui, translatedText)
+                    count = count + 1
+                end
+            end
+        end
+    end
+    
+    return count
+end
+
+local Tab9994 = Window:Tab("翻译", '5436396975')
+local Section7891 = Tab9994:section("汉化", true)
+
+-- 修复了Toggle回调函数的问题
+Section7891:Toggle("自动翻译", "NightVision", false, function(state)
+    isTranslationEnabled = state
+    if state then
+        print("自动翻译已开启，每" .. SCAN_INTERVAL .. "秒扫描一次")
+        
+        -- 关闭之前的连接（如果有）
+        if connection then
+            connection:Disconnect()
+            connection = nil
+        end
+        
+        -- 立即扫描一次
+        local count = scanAndTranslate()
+        if count > 0 then
+            print("初始扫描翻译了 " .. count .. " 个文本")
+        end
+        
+        -- 创建新的定时扫描
+        connection = RunService.Heartbeat:Connect(function()
+            if isTranslationEnabled then
+                local count = scanAndTranslate()
+                if count > 0 then
+                    print("自动扫描翻译了 " .. count .. " 个文本")
+                end
+                -- 使用task.wait而不是wait
+                task.wait(SCAN_INTERVAL)
+            end
+        end)
+    else
+        -- 关闭定时扫描
+        if connection then
+            connection:Disconnect()
+            connection = nil
+        end
+        print("自动翻译已关闭")
+    end
+end)
+
+-- 添加手动扫描按钮
+Section7891:Button("立即扫描翻译", function()
+    local count = scanAndTranslate()
+    Library:Notification("扫描完成", "翻译了 " .. count .. " 个文本", 5)
+end)
+
+-- 添加清空缓存按钮
+Section7891:Button("清空翻译缓存", function()
+    translatedCache = {}
+    translatedObjects = {}
+    Library:Notification("缓存已清空", "下次扫描将重新翻译所有文本", 5)
 end)
 
 local Tab7 = Window:Tab("黑洞", '5436396975')
@@ -12760,7 +13334,7 @@ UICorner.Parent = MainFrame
 local Title = Instance.new("TextLabel")
 Title.Size = UDim2.new(1, 0, 0, 40)
 Title.Position = UDim2.new(0, 0, 0, 0)
-Title.Text = "Super Ping Parts v3"
+Title.Text = "超级环部件V3"
 Title.TextColor3 = Color3.fromRGB(101, 67, 33) -- Dark brown
 Title.BackgroundColor3 = Color3.fromRGB(222, 184, 135) -- Lighter brown
 Title.Font = Enum.Font.Fondamento -- More elegant font
@@ -17224,7 +17798,7 @@ end)
 
         end)
         if not success then
-            warn("加载脚本时出错: ", err)
+            warn("加载远程脚本时出错: ", err)
         end
     else
         local player = cloneref(game:GetService("Players")).LocalPlayer
